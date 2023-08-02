@@ -2,7 +2,9 @@ package com.agold.intercom.module;
 
 import android.os.SystemProperties;
 import android.util.Log;
+
 import com.agold.intercom.utils.IComUtils;
+
 /* loaded from: classes.dex */
 public class ExtModuleProtocol {
     private ExtModuleManager mExtModuleManager;
@@ -31,9 +33,7 @@ public class ExtModuleProtocol {
         bArr3[1] = intTo4Bytes[1];
         bArr3[2] = intTo4Bytes[2];
         bArr3[3] = intTo4Bytes[3];
-        for (int i3 = 0; i3 < gbEncoding2Bytes.length; i3++) {
-            bArr3[i3 + 4] = gbEncoding2Bytes[i3];
-        }
+        System.arraycopy(gbEncoding2Bytes, 0, bArr3, 4, gbEncoding2Bytes.length);
         for (int i4 = 0; i4 < 4; i4++) {
             bArr3[gbEncoding2Bytes.length + 4 + i4] = 0;
         }
@@ -65,12 +65,8 @@ public class ExtModuleProtocol {
         byte[] bArr3 = new byte[15];
         bArr3[0] = (byte) i;
         bArr3[1] = (byte) i2;
-        for (int i10 = 0; i10 < 4; i10++) {
-            bArr3[i10 + 2] = intTo4LittleEndianBytes2[i10];
-        }
-        for (int i11 = 0; i11 < 4; i11++) {
-            bArr3[i11 + 6] = intTo4LittleEndianBytes[i11];
-        }
+        System.arraycopy(intTo4LittleEndianBytes2, 0, bArr3, 2, 4);
+        System.arraycopy(intTo4LittleEndianBytes, 0, bArr3, 6, 4);
         bArr3[10] = (byte) i5;
         bArr3[11] = (byte) i6;
         bArr3[12] = (byte) i7;
@@ -94,17 +90,11 @@ public class ExtModuleProtocol {
             bArr3[i10] = intTo4LittleEndianBytes2[i9];
             i9 = i10;
         }
-        for (int i11 = 0; i11 < 4; i11++) {
-            bArr3[i11 + 5] = intTo4LittleEndianBytes[i11];
-        }
-        for (int i12 = 0; i12 < 4; i12++) {
-            bArr3[i12 + 9] = intTo4Bytes[i12];
-        }
+        System.arraycopy(intTo4LittleEndianBytes, 0, bArr3, 5, 4);
+        System.arraycopy(intTo4Bytes, 0, bArr3, 9, 4);
         bArr3[13] = (byte) i5;
         bArr3[14] = (byte) i6;
-        for (int i13 = 0; i13 < 4; i13++) {
-            bArr3[i13 + 15] = intTo4Bytes2[i13];
-        }
+        System.arraycopy(intTo4Bytes2, 0, bArr3, 15, 4);
         bArr3[19] = (byte) i8;
         for (int i14 = 0; i14 < 8; i14++) {
             bArr3[i14 + 20] = 0;
@@ -112,17 +102,13 @@ public class ExtModuleProtocol {
         if (str != null) {
             byte[] bytes = str.getBytes();
             if (bytes.length > 0 && bytes.length <= 8) {
-                for (int i15 = 0; i15 < bytes.length; i15++) {
-                    bArr3[i15 + 20] = bytes[i15];
-                }
+                System.arraycopy(bytes, 0, bArr3, 20, bytes.length);
             }
         }
         int i16 = 28;
         for (int i17 : iArr) {
             byte[] intTo4Bytes3 = IComUtils.intTo4Bytes(i17);
-            for (int i18 = 0; i18 < 4; i18++) {
-                bArr3[i18 + i16] = intTo4Bytes3[i18];
-            }
+            System.arraycopy(intTo4Bytes3, 0, bArr3, 0 + i16, 4);
             i16 += 4;
         }
         this.mExtModuleManager.sendBytes(IComUtils.makePackage(bArr, bArr2, bArr3));
@@ -138,12 +124,8 @@ public class ExtModuleProtocol {
         byte[] intTo4LittleEndianBytes = IComUtils.intTo4LittleEndianBytes(sendFreq);
         byte[] intTo4LittleEndianBytes2 = IComUtils.intTo4LittleEndianBytes(recvFreq);
         byte[] bArr3 = new byte[19];
-        for (int i14 = 0; i14 < 4; i14++) {
-            bArr3[i14 + 0] = intTo4LittleEndianBytes2[i14];
-        }
-        for (int i15 = 0; i15 < 4; i15++) {
-            bArr3[i15 + 4] = intTo4LittleEndianBytes[i15];
-        }
+        System.arraycopy(intTo4LittleEndianBytes2, 0, bArr3, 0, 4);
+        System.arraycopy(intTo4LittleEndianBytes, 0, bArr3, 4, 4);
         if (band == 128) {
             bArr3[8] = 1;
         } else {
@@ -179,26 +161,16 @@ public class ExtModuleProtocol {
         byte[] intTo4LittleEndianBytes3 = IComUtils.intTo4LittleEndianBytes(i4);
         byte[] intTo4LittleEndianBytes4 = IComUtils.intTo4LittleEndianBytes(i7);
         byte[] bArr3 = new byte[163];
-        for (int i16 = 0; i16 < 4; i16++) {
-            bArr3[i16 + 0] = intTo4LittleEndianBytes2[i16];
-        }
-        for (int i17 = 0; i17 < 4; i17++) {
-            bArr3[i17 + 4] = intTo4LittleEndianBytes[i17];
-        }
-        for (int i18 = 0; i18 < 4; i18++) {
-            bArr3[i18 + 8] = intTo4LittleEndianBytes3[i18];
-        }
+        System.arraycopy(intTo4LittleEndianBytes2, 0, bArr3, 0, 4);
+        System.arraycopy(intTo4LittleEndianBytes, 0, bArr3, 4, 4);
+        System.arraycopy(intTo4LittleEndianBytes3, 0, bArr3, 8, 4);
         int i19 = 12;
         for (int i20 : iArr) {
             byte[] intTo4LittleEndianBytes5 = IComUtils.intTo4LittleEndianBytes(i20);
-            for (int i21 = 0; i21 < 4; i21++) {
-                bArr3[i21 + i19] = intTo4LittleEndianBytes5[i21];
-            }
+            System.arraycopy(intTo4LittleEndianBytes5, 0, bArr3, 0 + i19, 4);
             i19 += 4;
         }
-        for (int i22 = 0; i22 < 4; i22++) {
-            bArr3[i22 + i19] = intTo4LittleEndianBytes4[i22];
-        }
+        System.arraycopy(intTo4LittleEndianBytes4, 0, bArr3, 0 + i19, 4);
         int i23 = i19 + 4;
         if (i6 == 4) {
             bArr3[i23] = (byte) (i6 - 2);
@@ -228,9 +200,7 @@ public class ExtModuleProtocol {
         if (str != null) {
             byte[] bytes = str.getBytes();
             if (bytes.length > 0 && bytes.length <= 8) {
-                for (int i32 = 0; i32 < bytes.length; i32++) {
-                    bArr3[i32 + i30] = bytes[i32];
-                }
+                System.arraycopy(bytes, 0, bArr3, 0 + i30, bytes.length);
             }
         }
         int i33 = i30 + 8;
@@ -274,9 +244,7 @@ public class ExtModuleProtocol {
         bArr3[2] = intTo4Bytes[2];
         bArr3[3] = intTo4Bytes[1];
         bArr3[4] = intTo4Bytes[0];
-        for (int i3 = 0; i3 < gbEncoding2Bytes.length; i3++) {
-            bArr3[i3 + 5] = gbEncoding2Bytes[i3];
-        }
+        System.arraycopy(gbEncoding2Bytes, 0, bArr3, 5, gbEncoding2Bytes.length);
         for (int i4 = 0; i4 < 4; i4++) {
             bArr3[gbEncoding2Bytes.length + 5 + i4] = 0;
         }

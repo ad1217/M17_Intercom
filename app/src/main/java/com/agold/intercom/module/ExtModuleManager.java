@@ -1,8 +1,5 @@
 package com.agold.intercom.module;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
@@ -37,29 +34,35 @@ import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback;
 
 /* loaded from: classes.dex */
 public class ExtModuleManager {
-    private static final String SEND_AUDIO = SystemProperties.get("ro.agold_intercom_send_audio", "start_send_1.ogg");
     private static Context mContext;
     private static ExtModuleManager sInstance;
-    private int AUDIO_FRAME_SIZE;
-    private IAguiExtModule mAguiExtModule;
+
+    static {
+        new ReentrantLock();
+        mContext = null;
+        sInstance = null;
+    }
+
     private final AudioManager mAudioManager;
+    private final ExtModuleProtocol mExtModuleProtocol;
+    private final PowerManager mPowerManager;
+    private final SoundPool mSoundPool;
+    private final PowerManager.WakeLock mWakeLock;
+    private final byte[] mCmdWriteBuffer = new byte[1920];
+    private final HashMap<String, CallbackListener> mListenerMaps = new HashMap<>();
+    private final Object mAudioLock = new Object();
     AudioTrack mAudioTrack;
     AudioTrack mExtAudioTrack;
-    private final ExtModuleProtocol mExtModuleProtocol;
-    private NotificationChannel mNotificationChannel;
-    private final NotificationManager mNotificationManager;
+    private int AUDIO_FRAME_SIZE;
+    private IAguiExtModule mAguiExtModule;
     private File mPcmDir;
     private BufferedOutputStream mPcmRecordBOS;
     private int mPlayFrequency;
-    private final PowerManager mPowerManager;
     private int mRecFrequency;
-    private final SoundPool mSoundPool;
-    private final PowerManager.WakeLock mWakeLock;
     private boolean mIsStopRecord = true;
     private boolean mIsPTTStopComplete = true;
     private boolean mIsStopPlay = true;
     private int mAudioState = 0;
-    private int mCmdTypes = 0;
     private boolean mIsCmdStart = false;
     private boolean mIsMCUStarted = false;
     private boolean mIsUsbStarted = false;
@@ -68,14 +71,8 @@ public class ExtModuleManager {
     private boolean mIsUpdatingDmr = false;
     private boolean mAllExit = true;
     private boolean mIsCurrMusicFocus = false;
-    private Notification mIntercomNotification = new Notification();
-    private final Notification mIntercomMsgNotification = new Notification();
     private String mAudioRecordPath = null;
     private String mCurrFirmware = null;
-    private String mLastestFirmware = null;
-    private final String mMcuFirmwareDir = "/vendor/data/mcu/";
-    private String mCurrDmrFirmware = null;
-    private final String mDMRFirmwareDir = null;
     private int mPreSetChannel = 0;
     private boolean mIsSetChannelFinished = false;
     private int mCurrBatteryLevel = 100;
@@ -86,11 +83,6 @@ public class ExtModuleManager {
     private boolean mIsLockAnglogSend = false;
     private long mStartPlayTime = 0;
     private long mStartCallTime = 0;
-    private boolean mIsSettingFactory = false;
-    private boolean mIsFirstDmrUpdate = true;
-    private boolean mIsScanningChannels = false;
-    private final byte[] mCmdWriteBuffer = new byte[1920];
-    private boolean mIsInTestMode = false;
     private boolean mIsStopping = false;
     private final Handler mHandler = new Handler() { // from class: com.agold.intercom.module.ExtModuleManager.1
         @Override // android.os.Handler
@@ -187,55 +179,41 @@ public class ExtModuleManager {
             }
         }
     };
-    private final HashMap<String, CallbackListener> mListenerMaps = new HashMap<>();
-    private final Object mAudioLock = new Object();
     private boolean mHasNewMessage = false;
     private int mCallInStateChangedCount = 0;
-    private int mOrgScanChannel = 0;
-
-    /* loaded from: classes.dex */
-    public interface CallbackListener {
-        void onCallStateChanged(int i);
-
-        void onChargeStateChanged();
-
-        void onDmrUpdateFailed();
-
-        void onDmrUpdateStateChanged(int i);
-
-        void onGetIncallInfo(int i, int i2, int i3);
-
-        void onManagerStartTimeout();
-
-        void onManagerStarted();
-
-        void onMcuStartComplete();
-
-        void onMcuUpdateStateChanged(int i);
-
-        void onMsgReceived();
-
-        void onPlayStateChanged(int i);
-
-        void onResetFactoryStart();
-
-        void onScanChannelsComplete();
-
-        void onScanChannelsStart();
-
-        void onSetChannelComplete();
-
-        void onSetChannelStart();
-
-        void onSetChannelTimeout();
-
-        void onUSBChargeChanged(boolean z);
+    public ExtModuleManager(Context context) {
+        this.mRecFrequency = 48000;
+        this.mPlayFrequency = 48000;
+        this.AUDIO_FRAME_SIZE = 1920;
+        Log.i("ExtModuleManager", "ExtModuleManager constuct");
+        ExtModuleProtocol extModuleProtocol = new ExtModuleProtocol();
+        this.mExtModuleProtocol = extModuleProtocol;
+        extModuleProtocol.setExtModuleManager(this);
+        StorageManager storageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
+        this.mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        this.mPowerManager = powerManager;
+        this.mWakeLock = powerManager.newWakeLock(26, "Intercom");
+        this.mSoundPool = new SoundPool(10, 1, 5);
+        if (SystemProperties.getBoolean("ro.agold.extmodule.32k", false)) {
+            this.mRecFrequency = 32000;
+            this.mPlayFrequency = 32000;
+            this.AUDIO_FRAME_SIZE = 1280;
+        }
     }
 
-    static {
-        new ReentrantLock();
-        mContext = null;
-        sInstance = null;
+    public static synchronized ExtModuleManager getInstance(Context context) {
+        ExtModuleManager extModuleManager;
+        synchronized (ExtModuleManager.class) {
+            if (sInstance == null) {
+                sInstance = new ExtModuleManager(context);
+            }
+            if (sInstance != null) {
+                sInstance.init(context);
+            }
+            extModuleManager = sInstance;
+        }
+        return extModuleManager;
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -273,7 +251,6 @@ public class ExtModuleManager {
             this.mListenerMaps.get(str).onPlayStateChanged(i);
         }
     }
-
 
     /* JADX INFO: Access modifiers changed from: private */
     public void onSetChannelComplete() {
@@ -382,42 +359,6 @@ public class ExtModuleManager {
         mContext = context;
     }
 
-    public static synchronized ExtModuleManager getInstance(Context context) {
-        ExtModuleManager extModuleManager;
-        synchronized (ExtModuleManager.class) {
-            if (sInstance == null) {
-                sInstance = new ExtModuleManager(context);
-            }
-            if (sInstance != null) {
-                sInstance.init(context);
-            }
-            extModuleManager = sInstance;
-        }
-        return extModuleManager;
-    }
-
-    public ExtModuleManager(Context context) {
-        this.mRecFrequency = 48000;
-        this.mPlayFrequency = 48000;
-        this.AUDIO_FRAME_SIZE = 1920;
-        Log.i("ExtModuleManager", "ExtModuleManager constuct");
-        ExtModuleProtocol extModuleProtocol = new ExtModuleProtocol();
-        this.mExtModuleProtocol = extModuleProtocol;
-        extModuleProtocol.setExtModuleManager(this);
-        StorageManager storageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
-        this.mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        this.mPowerManager = powerManager;
-        this.mWakeLock = powerManager.newWakeLock(26, "Intercom");
-        this.mNotificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        this.mSoundPool = new SoundPool(10, 1, 5);
-        if (SystemProperties.getBoolean("ro.agold.extmodule.32k", false)) {
-            this.mRecFrequency = 32000;
-            this.mPlayFrequency = 32000;
-            this.AUDIO_FRAME_SIZE = 1280;
-        }
-    }
-
     public ExtModuleProtocol getExtModuleProtocol() {
         return this.mExtModuleProtocol;
     }
@@ -456,8 +397,6 @@ public class ExtModuleManager {
     public void start() {
         Log.i("ExtModuleManager", "start mAllExit:" + this.mAllExit + ", mIsCmdStart:" + this.mIsCmdStart + ", mIsMCUStarted:" + this.mIsMCUStarted);
         this.mAllExit = false;
-        this.mIsFirstDmrUpdate = true;
-        this.mIsInTestMode = false;
         this.mIsStopping = false;
         startMcu();
         createCmdReadThread();
@@ -490,7 +429,7 @@ public class ExtModuleManager {
         }, 300L);
     }
 
-    public int exit() {
+    public void exit() {
         Log.i("ExtModuleManager", "exit mAudioState:" + this.mAudioState);
         this.mAllExit = true;
         this.mIsStopRecord = true;
@@ -498,9 +437,6 @@ public class ExtModuleManager {
         this.mIsStopPlay = true;
         this.mIsCmdStart = false;
         this.mIsMCUStarted = false;
-        this.mIsFirstDmrUpdate = true;
-        this.mIsInTestMode = false;
-        this.mCmdTypes = 0;
         PowerManager.WakeLock wakeLock = this.mWakeLock;
         if (wakeLock != null && wakeLock.isHeld()) {
             this.mWakeLock.release();
@@ -515,7 +451,6 @@ public class ExtModuleManager {
             audioTrack2.release();
             this.mExtAudioTrack = null;
         }
-        return 0;
     }
 
     public void sendBytes(byte[] bArr) {
@@ -647,7 +582,7 @@ public class ExtModuleManager {
                 @Override // java.lang.Runnable
                 public void run() {
                     if (ExtModuleManager.this.mExtModuleProtocol != null) {
-                        if (ExtModuleManager.this.mCurrFirmware == null || ExtModuleManager.this.mCurrFirmware.length() <= 0) {
+                        if (ExtModuleManager.this.mCurrFirmware == null || ExtModuleManager.this.mCurrFirmware.isEmpty()) {
                             ExtModuleManager.this.mExtModuleProtocol.getFirmwareVersion();
                         }
                     }
@@ -657,7 +592,7 @@ public class ExtModuleManager {
                 @Override // java.lang.Runnable
                 public void run() {
                     if (ExtModuleManager.this.mExtModuleProtocol != null) {
-                        if (ExtModuleManager.this.mCurrFirmware == null || ExtModuleManager.this.mCurrFirmware.length() <= 0) {
+                        if (ExtModuleManager.this.mCurrFirmware == null || ExtModuleManager.this.mCurrFirmware.isEmpty()) {
                             ExtModuleManager.this.mExtModuleProtocol.getFirmwareVersion();
                         }
                     }
@@ -669,18 +604,16 @@ public class ExtModuleManager {
     private void handleRecvFirmwareVersion(byte[] bArr) {
         Log.i("ExtModuleManager", "handleRecvFirmwareVersion mCurrFirmware:" + mCurrFirmware);
         String str = this.mCurrFirmware;
-        if ((str == null || str.length() <= 0) && bArr.length > 8) {
+        if ((str == null || str.isEmpty()) && bArr.length > 8) {
             int bytesToInt2 = IComUtils.bytesToInt2(new byte[]{bArr[6], bArr[7]});
             if (bytesToInt2 < 0) {
                 bytesToInt2 += 256;
             }
             if (bytesToInt2 > 0) {
                 byte[] bArr2 = new byte[bytesToInt2];
-                for (int i = 0; i < bytesToInt2; i++) {
-                    bArr2[i] = bArr[i + 8];
-                }
+                System.arraycopy(bArr, 8, bArr2, 0, bytesToInt2);
                 this.mCurrFirmware = new String(bArr2);
-                Log.i("ExtModuleManager", "handleRecvFirmwareVersion mCurrFirmware:" + this.mCurrFirmware + ", mLastestFirmware:" + this.mLastestFirmware);
+                Log.i("ExtModuleManager", "handleRecvFirmwareVersion mCurrFirmware:" + this.mCurrFirmware);
                 if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
                     this.mExtModuleProtocol.getDmr09ModuleSoftVersion();
                 } else {
@@ -692,7 +625,6 @@ public class ExtModuleManager {
             }
         }
     }
-
 
     /* JADX INFO: Access modifiers changed from: private */
     public void openPcmIn() {
@@ -809,7 +741,8 @@ public class ExtModuleManager {
                                 try {
                                     if (ExtModuleManager.this.getAguiExtModule() != null) {
                                         ExtModuleManager.this.mAguiExtModule.readTTyDevice(new IAguiExtModuleReadCallback.Stub() { // from class: com.agold.intercom.module.ExtModuleManager.20.1
-                                            @Override // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
+                                            @Override
+                                            // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
                                             public void onReadDevice(byte[] bArr, int i) throws RemoteException {
                                                 if (i > 0) {
                                                     Log.i("ExtModuleManager", "onReadTTyDevice readSize:" + i);
@@ -893,7 +826,8 @@ public class ExtModuleManager {
                                     try {
                                         if (ExtModuleManager.this.getAguiExtModule() != null) {
                                             ExtModuleManager.this.mAguiExtModule.readPcmDevice(new IAguiExtModuleReadCallback.Stub() { // from class: com.agold.intercom.module.ExtModuleManager.22.1
-                                                @Override // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
+                                                @Override
+                                                // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
                                                 public void onReadDevice(byte[] bArr, int i) throws RemoteException {
                                                     if (i > 0) {
                                                         Log.i("ExtModuleManager", "readPcmDevice readSize:" + i);
@@ -1034,12 +968,12 @@ public class ExtModuleManager {
             this.mStartPlayTime = System.currentTimeMillis();
             setAudioRecordPath("" + this.mStartPlayTime);
             onPlayStateChanged(1);
-            if (this.mIsScanningChannels) {
-                this.mHandler.removeMessages(23);
-                Handler handler2 = this.mHandler;
-                handler2.sendMessage(handler2.obtainMessage(23));
-                this.mIsScanningChannels = false;
-            }
+//            if (this.mIsScanningChannels) {
+//                this.mHandler.removeMessages(23);
+//                Handler handler2 = this.mHandler;
+//                handler2.sendMessage(handler2.obtainMessage(23));
+//                this.mIsScanningChannels = false;
+//            }
             try {
                 File file = new File("/sdcard/Download/record/");
                 this.mPcmDir = file;
@@ -1072,17 +1006,16 @@ public class ExtModuleManager {
         }
     }
 
-    public int stopPlay() {
+    public void stopPlay() {
         Log.i("ExtModuleManager", "stopPlay mIsStopPlay:" + this.mIsStopPlay);
         if (this.mIsStopPlay) {
             Log.i("ExtModuleManager", "stopPlay---> play is not started");
-            return 0;
+            return;
         }
         this.mIsStopPlay = true;
         this.mHandler.removeMessages(19);
         Handler handler = this.mHandler;
         handler.sendMessage(handler.obtainMessage(19));
-        String str = this.mAudioRecordPath;
         try {
             if (this.mPcmRecordBOS != null) {
                 this.mPcmRecordBOS.close();
@@ -1094,12 +1027,12 @@ public class ExtModuleManager {
 //        int currChannel = this.mIComPreference.getCurrChannel(1);
 //        int currArea = this.mIComPreference.getCurrArea(1);
 //        long currentTimeMillis = System.currentTimeMillis() - this.mStartPlayTime;
-//        Log.i("ExtModuleManager", "stopPlay channelId:" + currChannel + ", channelArea:" + currArea + ", recordPath:" + str + ", duration:" + currentTimeMillis + ", mStartPlayTime:" + this.mStartPlayTime + ", mIsSettingFactory:" + this.mIsSettingFactory);
-//        if (str != null && !this.mIsSettingFactory) {
+//        Log.i("ExtModuleManager", "stopPlay channelId:" + currChannel + ", channelArea:" + currArea + ", recordPath:" + this.mAudioRecordPath + ", duration:" + currentTimeMillis + ", mStartPlayTime:" + this.mStartPlayTime + ", mIsSettingFactory:" + this.mIsSettingFactory);
+//        if (this.mAudioRecordPath != null && !this.mIsSettingFactory) {
 //            if (currentTimeMillis < 1500) {
-//                deleteRecordFile(str);
+//                deleteRecordFile(this.mAudioRecordPath);
 //            } else {
-//                IComRecordDB.getInstance(mContext).addRecord(new Record(currChannel, currArea, 1, str, currentTimeMillis, this.mStartPlayTime));
+//                IComRecordDB.getInstance(mContext).addRecord(new Record(currChannel, currArea, 1, this.mAudioRecordPath, currentTimeMillis, this.mStartPlayTime));
 //            }
 //        }
         this.mStartPlayTime = 0L;
@@ -1121,7 +1054,6 @@ public class ExtModuleManager {
             }
         }, 500L);
         Log.i("ExtModuleManager", "stopPlay end-----------------");
-        return 0;
     }
 
     public int startRecord() {
@@ -1183,10 +1115,7 @@ public class ExtModuleManager {
         String byte2HexStrNoBlank = IComUtils.byte2HexStrNoBlank(bArr2);
         Log.i("ExtModuleManager", "handleCmdResponse len:" + length + ", strCmd:" + byte2HexStrNoBlank);
         int i2 = 0;
-        while (true) {
-            if (i2 + 11 >= length) {
-                break;
-            }
+        while (i2 + 11 < length) {
             try {
                 if (IComUtils.isIComCmd(bArr2, i2)) {
                     int bytesToInt2 = IComUtils.bytesToInt2(new byte[]{bArr2[i2 + 6], bArr2[i2 + 7]});
@@ -1381,9 +1310,7 @@ public class ExtModuleManager {
             if (bytesToInt2 > 0) {
                 int i = bytesToInt2 - 1;
                 byte[] bArr2 = new byte[i];
-                for (int i2 = 0; i2 < i; i2++) {
-                    bArr2[i2] = bArr[i2 + 8];
-                }
+                System.arraycopy(bArr, 8, bArr2, 0, i);
                 String str = new String(bArr2);
                 Log.i("ExtModuleManager", "getModuleVersonContent module:" + str);
 
@@ -1573,7 +1500,6 @@ public class ExtModuleManager {
         return this.mExtAudioTrack;
     }
 
-
     public void setChannel(Channel channel) {
         Log.i("ExtModuleManager", "setChannel mIsCmdStart:" + this.mIsCmdStart + ", mIsStopPlay:" + this.mIsStopPlay + ", mIsStopRecord:" + this.mIsStopRecord + ", mIsUsbStarted:" + this.mIsUsbStarted + ", mIsPTTStopComplete:" + this.mIsPTTStopComplete + ", channel:" + channel);
         if (channel != null && this.mIsCmdStart && this.mIsStopRecord && this.mIsUsbStarted && this.mIsPTTStopComplete) {
@@ -1674,10 +1600,6 @@ public class ExtModuleManager {
         }
     }
 
-//    public void showInstallAntennaToast(Context context) {
-//        Toast.makeText(context, (int) R.string.install_antenna, Toast.LENGTH_SHORT).show();
-//    }
-
     public boolean isAntennaInstalled() {
         if (SystemProperties.getBoolean("ro.agold.extmodule.hal", false)) {
             File file = new File("/sys/hall_status/hall_status");
@@ -1696,4 +1618,50 @@ public class ExtModuleManager {
         }
         return true;
     }
+
+    /* loaded from: classes.dex */
+    public interface CallbackListener {
+        void onCallStateChanged(int i);
+
+        void onChargeStateChanged();
+
+        void onDmrUpdateFailed();
+
+        void onDmrUpdateStateChanged(int i);
+
+        void onGetIncallInfo(int i, int i2, int i3);
+
+        void onManagerStartTimeout();
+
+        void onManagerStarted();
+
+        void onMcuStartComplete();
+
+        void onMcuUpdateStateChanged(int i);
+
+        void onMsgReceived();
+
+        void onPlayStateChanged(int i);
+
+        void onResetFactoryStart();
+
+        void onScanChannelsComplete();
+
+        void onScanChannelsStart();
+
+        void onSetChannelComplete();
+
+        void onSetChannelStart();
+
+        void onSetChannelTimeout();
+
+        void onUSBChargeChanged(boolean z);
+    }
+
+
+//    public void showInstallAntennaToast(Context context) {
+//        Toast.makeText(context, (int) R.string.install_antenna, Toast.LENGTH_SHORT).show();
+//    }
+
+
 }
