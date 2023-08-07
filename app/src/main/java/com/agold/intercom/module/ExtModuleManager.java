@@ -228,20 +228,15 @@ public class ExtModuleManager {
         return extModuleManager;
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onManagerStarted() {
+    private void onManagerStarted() {
         Log.i("ExtModuleManager", "onManagerStarted");
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onManagerStarted();
-        }
+        this.mListenerMaps.values().forEach(CallbackListener::onManagerStarted);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public void onManagerStartTimeout() {
         Log.i("ExtModuleManager", "onManagerStartTimeout");
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onManagerStartTimeout();
-        }
+        this.mListenerMaps.values().forEach(CallbackListener::onManagerStartTimeout);
     }
 
     private void onCallStateChanged(int i) {
@@ -249,9 +244,7 @@ public class ExtModuleManager {
         Intent intent = new Intent("agui.intercom.intent.action.CALL_STATE_CHANGED");
         intent.putExtra("callstate", i);
         mContext.sendBroadcast(intent);
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onCallStateChanged(i);
-        }
+        this.mListenerMaps.values().forEach(listenerCallback -> listenerCallback.onCallStateChanged(i));
     }
 
     private void onPlayStateChanged(int i) {
@@ -259,65 +252,42 @@ public class ExtModuleManager {
         Intent intent = new Intent("agui.intercom.intent.action.PLAY_STATE_CHANGED");
         intent.putExtra("playstate", i);
         mContext.sendBroadcast(intent);
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onPlayStateChanged(i);
-        }
+        this.mListenerMaps.values().forEach(listenerCallback -> listenerCallback.onPlayStateChanged(i));
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onSetChannelComplete() {
-        String str;
-        String str2;
-        Channel currChannel;
+    private void onSetChannelComplete() {
         Log.i("ExtModuleManager", "onSetChannelComplete");
 
-        for (String str4 : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str4).onSetChannelComplete();
-        }
+        this.mListenerMaps.values().forEach(CallbackListener::onSetChannelComplete);
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onSetChannelTimeout() {
+    private void onSetChannelTimeout() {
         Log.i("ExtModuleManager", "onSetChannelTimeout mIsCmdStart:" + this.mIsCmdStart);
         if (this.mIsCmdStart) {
             resetMcu();
         }
         this.mIsSetChannelFinished = true;
         mContext.sendBroadcast(new Intent("agui.intercom.intent.action.START_TIMEOUT"));
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onSetChannelTimeout();
-        }
+        this.mListenerMaps.values().forEach(CallbackListener::onSetChannelTimeout);
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onMcuStartComplete() {
+    private void onMcuStartComplete() {
         Log.i("ExtModuleManager", "onMcuStartComplete");
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onMcuStartComplete();
-        }
+        this.mListenerMaps.values().forEach(CallbackListener::onMcuStartComplete);
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onResetFactoryStart() {
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onResetFactoryStart();
-        }
+    private void onResetFactoryStart() {
+		this.mListenerMaps.values().forEach(CallbackListener::onResetFactoryStart);
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onScanChannelsStart() {
+    private void onScanChannelsStart() {
         Log.i("ExtModuleManager", "onScanChannelsStart");
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onScanChannelsStart();
-        }
+		this.mListenerMaps.values().forEach(CallbackListener::onScanChannelsStart);
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onScanChannelsComplete() {
+    private void onScanChannelsComplete() {
         Log.i("ExtModuleManager", "onScanChannelsComplete");
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onScanChannelsComplete();
-        }
+		this.mListenerMaps.values().forEach(CallbackListener::onScanChannelsComplete);
     }
 
     private void onChargeStateChanged() {
@@ -325,25 +295,18 @@ public class ExtModuleManager {
         if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
             return;
         }
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onChargeStateChanged();
-        }
+		this.mListenerMaps.values().forEach(CallbackListener::onChargeStateChanged);
     }
 
     private void onUSBChargeChanged(boolean z) {
         if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
             return;
         }
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onUSBChargeChanged(z);
-        }
+		this.mListenerMaps.values().forEach(listenerCallback -> listenerCallback.onUSBChargeChanged(z));
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onGetIncallInfo(int i, int i2, int i3) {
-        for (String str : this.mListenerMaps.keySet()) {
-            this.mListenerMaps.get(str).onGetIncallInfo(i, i2, i3);
-        }
+    private void onGetIncallInfo(int i, int i2, int i3) {
+        this.mListenerMaps.values().forEach(listenerCallback -> listenerCallback.onGetIncallInfo(i, i2, i3));
     }
 
     public synchronized IAguiExtModule getAguiExtModule() {
