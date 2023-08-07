@@ -9,6 +9,7 @@ import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.media.SoundPool;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -28,6 +29,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.concurrent.locks.ReentrantLock;
 
 import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModule;
@@ -53,7 +55,6 @@ public class ExtModuleManager {
     AudioTrack mExtAudioTrack;
     private int AUDIO_FRAME_SIZE;
     private IAguiExtModule mAguiExtModule;
-    private File mPcmDir;
     private BufferedOutputStream mPcmRecordBOS;
     private int mPlayFrequency;
     private int mRecFrequency;
@@ -69,7 +70,7 @@ public class ExtModuleManager {
     private boolean mIsUpdatingDmr = false;
     private boolean mAllExit = true;
     private AudioFocusRequest mCurrentAudioFocusRequest = null;
-    private String mAudioRecordPath = null;
+    private File mAudioRecordPath = null;
     private String mCurrFirmware = null;
     private int mPreSetChannel = 0;
     private boolean mIsSetChannelFinished = false;
@@ -709,18 +710,17 @@ public class ExtModuleManager {
                         } else {
                             byte[] bArr = new byte[1920];
                             Log.i("ExtModuleManager", "createAudioRecordThread mAudioRecordPath:" + ExtModuleManager.this.mAudioRecordPath);
-                            File file = new File("/sdcard/Download/record/");
-                            if (!file.exists()) {
-                                file.mkdirs();
+                            File audioRecordPathParent = ExtModuleManager.this.mAudioRecordPath.getParentFile();
+                            if (audioRecordPathParent != null && !audioRecordPathParent.exists()) {
+                                audioRecordPathParent.mkdirs();
                             }
                             BufferedOutputStream bufferedOutputStream = null;
                             if (ExtModuleManager.this.mAudioRecordPath != null) {
-                                File file2 = new File(ExtModuleManager.this.mAudioRecordPath);
-                                if (file2.exists()) {
-                                    file2.delete();
+                                if (ExtModuleManager.this.mAudioRecordPath.exists()) {
+                                    ExtModuleManager.this.mAudioRecordPath.delete();
                                 }
-                                file2.createNewFile();
-                                bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(file2));
+                                ExtModuleManager.this.mAudioRecordPath.createNewFile();
+                                bufferedOutputStream = new BufferedOutputStream(Files.newOutputStream(ExtModuleManager.this.mAudioRecordPath.toPath()));
                             }
                             AudioRecord audioRecord = new AudioRecord(1, ExtModuleManager.this.mRecFrequency, 12, 2, AudioRecord.getMinBufferSize(ExtModuleManager.this.mRecFrequency, 12, 2));
                             audioRecord.startRecording();
@@ -782,10 +782,9 @@ public class ExtModuleManager {
 //                this.mIsScanningChannels = false;
 //            }
             try {
-                File file = new File("/sdcard/Download/record/");
-                this.mPcmDir = file;
-                if (!file.exists()) {
-                    this.mPcmDir.mkdirs();
+                File audioRecordPathParent = this.mAudioRecordPath.getParentFile();
+                if (audioRecordPathParent != null && !audioRecordPathParent.exists()) {
+                    audioRecordPathParent.mkdirs();
                 }
             } catch (Exception e) {
                 Log.e("ExtModuleManager", "startPlay ex:" + e);
@@ -793,7 +792,7 @@ public class ExtModuleManager {
             if (this.mAudioRecordPath == null) {
                 return 0;
             }
-            File pcmFile = new File(this.mAudioRecordPath);
+            File pcmFile = this.mAudioRecordPath;
             if (pcmFile.exists()) {
                 pcmFile.delete();
             }
@@ -1356,7 +1355,7 @@ public class ExtModuleManager {
         int pttRecordEnable = 1;
         Log.i("ExtModuleManager", "setAudioRecordPath name:" + str + ", isPttRecordEnable:" + pttRecordEnable);
         if (pttRecordEnable == 1) {
-            this.mAudioRecordPath = "/sdcard/Download/record/" + str + ".pcm";
+            this.mAudioRecordPath = new File(Environment.getExternalStorageDirectory(), "Download/record/" + str + ".pcm");
         } else {
             this.mAudioRecordPath = null;
         }
