@@ -418,16 +418,13 @@ public class ExtModuleManager {
         Log.i("ExtModuleManager", "stop-------");
         stopCom();
         this.mIsStopping = true;
-        this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.3
-            @Override // java.lang.Runnable
-            public void run() {
-                ExtModuleManager.this.exit();
-                if (ExtModuleManager.mContext != null) {
+        this.mHandler.postDelayed(() -> {
+            ExtModuleManager.this.exit();
+            if (ExtModuleManager.mContext != null) {
 //                    ExtModuleManager.mContext.stopService(new Intent(ExtModuleManager.mContext, IComService.class));
-                    Log.i("ExtModuleManager", "stopService----------");
-                }
-                ExtModuleManager.this.mIsStopping = true;
+                Log.i("ExtModuleManager", "stopService----------");
             }
+            ExtModuleManager.this.mIsStopping = true;
         }, 300L);
     }
 
@@ -471,51 +468,40 @@ public class ExtModuleManager {
         if (this.mAllExit || this.mIsStopping) {
             return;
         }
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.5
-            @Override // java.lang.Runnable
-            public void run() {
-                try {
-                    if (ExtModuleManager.this.mIsMCUStarted) {
-                        return;
-                    }
-                    try {
-                        if (ExtModuleManager.this.getAguiExtModule() != null) {
-                            ExtModuleManager.this.mAguiExtModule.startMcu();
-                            ExtModuleManager.this.mIsMCUStarted = true;
-                            ExtModuleManager.this.mIsUpdatingDmr = false;
-                        }
-                        ExtModuleManager.this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.5.1
-                            @Override // java.lang.Runnable
-                            public void run() {
-                                ExtModuleManager.this.handleMcuStartFinished();
-                            }
-                        }, 2000L);
-                    } catch (Exception e) {
-                        Log.e("ExtModuleManager", "startMcu ex:" + e);
-                    }
-                } catch (Exception e2) {
-                    Log.e("ExtModuleManager", "startMcu e:" + e2);
+        new Thread(() -> {
+            try {
+                if (ExtModuleManager.this.mIsMCUStarted) {
+                    return;
                 }
+                try {
+                    if (ExtModuleManager.this.getAguiExtModule() != null) {
+                        ExtModuleManager.this.mAguiExtModule.startMcu();
+                        ExtModuleManager.this.mIsMCUStarted = true;
+                        ExtModuleManager.this.mIsUpdatingDmr = false;
+                    }
+                    ExtModuleManager.this.mHandler.postDelayed(ExtModuleManager.this::handleMcuStartFinished, 2000L);
+                } catch (Exception e) {
+                    Log.e("ExtModuleManager", "startMcu ex:" + e);
+                }
+            } catch (Exception e2) {
+                Log.e("ExtModuleManager", "startMcu e:" + e2);
             }
         }).start();
     }
 
     public void stopMcu() {
         Log.i("ExtModuleManager", "stopMcu");
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.6
-            @Override // java.lang.Runnable
-            public void run() {
-                try {
-                    Log.i("ExtModuleManager", "stopMcu mAguiExtModule:" + ExtModuleManager.this.mAguiExtModule);
-                    if (ExtModuleManager.this.getAguiExtModule() != null) {
-                        Log.i("ExtModuleManager", "mAguiExtModule stopMcu");
-                        ExtModuleManager.this.mIsMCUStarted = false;
-                        ExtModuleManager.this.mIsCmdStart = false;
-                        ExtModuleManager.this.mAguiExtModule.stopMcu();
-                    }
-                } catch (Exception e) {
-                    Log.e("ExtModuleManager", "stopMcu e:" + e);
+        new Thread(() -> {
+            try {
+                Log.i("ExtModuleManager", "stopMcu mAguiExtModule:" + ExtModuleManager.this.mAguiExtModule);
+                if (ExtModuleManager.this.getAguiExtModule() != null) {
+                    Log.i("ExtModuleManager", "mAguiExtModule stopMcu");
+                    ExtModuleManager.this.mIsMCUStarted = false;
+                    ExtModuleManager.this.mIsCmdStart = false;
+                    ExtModuleManager.this.mAguiExtModule.stopMcu();
                 }
+            } catch (Exception e) {
+                Log.e("ExtModuleManager", "stopMcu e:" + e);
             }
         }).start();
         this.mIsSetChannelFinished = false;
@@ -524,12 +510,7 @@ public class ExtModuleManager {
     public void resetMcu() {
         Log.i("ExtModuleManager", "resetMcu");
         stopCom();
-        this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.7
-            @Override // java.lang.Runnable
-            public void run() {
-                ExtModuleManager.this.startMcu();
-            }
-        }, 4000L);
+        this.mHandler.postDelayed(ExtModuleManager.this::startMcu, 4000L);
     }
 
     public void startCom() {
@@ -563,12 +544,7 @@ public class ExtModuleManager {
         Handler handler2 = this.mHandler;
         handler2.sendMessageDelayed(handler2.obtainMessage(2), 30000L);
         startCom();
-        this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.8
-            @Override // java.lang.Runnable
-            public void run() {
-                ExtModuleManager.this.getMcuFirmwareVersion();
-            }
-        }, 1000L);
+        this.mHandler.postDelayed(ExtModuleManager.this::getMcuFirmwareVersion, 1000L);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -580,23 +556,17 @@ public class ExtModuleManager {
             if (extModuleProtocol != null) {
                 extModuleProtocol.getFirmwareVersion();
             }
-            this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.9
-                @Override // java.lang.Runnable
-                public void run() {
-                    if (ExtModuleManager.this.mExtModuleProtocol != null) {
-                        if (ExtModuleManager.this.mCurrFirmware == null || ExtModuleManager.this.mCurrFirmware.isEmpty()) {
-                            ExtModuleManager.this.mExtModuleProtocol.getFirmwareVersion();
-                        }
+            this.mHandler.postDelayed(() -> {
+                if (ExtModuleManager.this.mExtModuleProtocol != null) {
+                    if (ExtModuleManager.this.mCurrFirmware == null || ExtModuleManager.this.mCurrFirmware.isEmpty()) {
+                        ExtModuleManager.this.mExtModuleProtocol.getFirmwareVersion();
                     }
                 }
             }, 1000L);
-            this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.10
-                @Override // java.lang.Runnable
-                public void run() {
-                    if (ExtModuleManager.this.mExtModuleProtocol != null) {
-                        if (ExtModuleManager.this.mCurrFirmware == null || ExtModuleManager.this.mCurrFirmware.isEmpty()) {
-                            ExtModuleManager.this.mExtModuleProtocol.getFirmwareVersion();
-                        }
+            this.mHandler.postDelayed(() -> {
+                if (ExtModuleManager.this.mExtModuleProtocol != null) {
+                    if (ExtModuleManager.this.mCurrFirmware == null || ExtModuleManager.this.mCurrFirmware.isEmpty()) {
+                        ExtModuleManager.this.mExtModuleProtocol.getFirmwareVersion();
                     }
                 }
             }, 2000L);
@@ -630,38 +600,32 @@ public class ExtModuleManager {
 
     /* JADX INFO: Access modifiers changed from: private */
     public void openPcmIn() {
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.15
-            @Override // java.lang.Runnable
-            public void run() {
-                try {
-                    if (ExtModuleManager.this.getAguiExtModule() != null) {
-                        int openPcmIn = ExtModuleManager.this.mAguiExtModule.openPcmIn();
-                        Log.i("ExtModuleManager", "openPcmIn ret:" + openPcmIn);
-                        if (openPcmIn == 1) {
-                            ExtModuleManager.this.mIsPcmInStart = true;
-                        }
+        new Thread(() -> {
+            try {
+                if (ExtModuleManager.this.getAguiExtModule() != null) {
+                    int openPcmIn = ExtModuleManager.this.mAguiExtModule.openPcmIn();
+                    Log.i("ExtModuleManager", "openPcmIn ret:" + openPcmIn);
+                    if (openPcmIn == 1) {
+                        ExtModuleManager.this.mIsPcmInStart = true;
                     }
-                } catch (Exception e) {
-                    Log.e("ExtModuleManager", "openPcmIn e:" + e);
                 }
+            } catch (Exception e) {
+                Log.e("ExtModuleManager", "openPcmIn e:" + e);
             }
         }).start();
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public void closePcmIn() {
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.16
-            @Override // java.lang.Runnable
-            public void run() {
-                try {
-                    if (ExtModuleManager.this.getAguiExtModule() != null) {
-                        int closePcmIn = ExtModuleManager.this.mAguiExtModule.closePcmIn();
-                        Log.i("ExtModuleManager", "closePcmIn ret:" + closePcmIn);
-                        ExtModuleManager.this.mIsPcmInStart = false;
-                    }
-                } catch (Exception e) {
-                    Log.e("ExtModuleManager", "closePcmIn e:" + e);
+        new Thread(() -> {
+            try {
+                if (ExtModuleManager.this.getAguiExtModule() != null) {
+                    int closePcmIn = ExtModuleManager.this.mAguiExtModule.closePcmIn();
+                    Log.i("ExtModuleManager", "closePcmIn ret:" + closePcmIn);
+                    ExtModuleManager.this.mIsPcmInStart = false;
                 }
+            } catch (Exception e) {
+                Log.e("ExtModuleManager", "closePcmIn e:" + e);
             }
         }).start();
     }
@@ -677,21 +641,18 @@ public class ExtModuleManager {
             this.mIsStopRecord = false;
             this.mStartCallTime = System.currentTimeMillis();
             setAudioRecordPath("" + this.mStartCallTime);
-            new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.17
-                @Override // java.lang.Runnable
-                public void run() {
-                    try {
-                        if (ExtModuleManager.this.getAguiExtModule() != null) {
-                            ExtModuleManager.this.mAguiExtModule.startPtt();
-                            int openPcmOut = ExtModuleManager.this.mAguiExtModule.openPcmOut();
-                            Log.i("ExtModuleManager", "openPcmOut ret:" + openPcmOut);
-                            if (openPcmOut == 1) {
-                                ExtModuleManager.this.mIsPcmOutStart = true;
-                            }
+            new Thread(() -> {
+                try {
+                    if (ExtModuleManager.this.getAguiExtModule() != null) {
+                        ExtModuleManager.this.mAguiExtModule.startPtt();
+                        int openPcmOut = ExtModuleManager.this.mAguiExtModule.openPcmOut();
+                        Log.i("ExtModuleManager", "openPcmOut ret:" + openPcmOut);
+                        if (openPcmOut == 1) {
+                            ExtModuleManager.this.mIsPcmOutStart = true;
                         }
-                    } catch (Exception e) {
-                        Log.e("ExtModuleManager", "openPcmOut e:" + e);
                     }
+                } catch (Exception e) {
+                    Log.e("ExtModuleManager", "openPcmOut e:" + e);
                 }
             }).start();
         }
@@ -703,27 +664,21 @@ public class ExtModuleManager {
         if (this.mIsStopRecord) {
             return;
         }
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.18
-            @Override // java.lang.Runnable
-            public void run() {
-                try {
-                    if (ExtModuleManager.this.getAguiExtModule() != null) {
-                        int closePcmOut = ExtModuleManager.this.mAguiExtModule.closePcmOut();
-                        Log.i("ExtModuleManager", "closePcmOut ret:" + closePcmOut);
-                        ExtModuleManager.this.mAguiExtModule.stopPtt();
-                    }
-                } catch (Exception e) {
-                    Log.e("ExtModuleManager", "closePcmOut e:" + e);
+        new Thread(() -> {
+            try {
+                if (ExtModuleManager.this.getAguiExtModule() != null) {
+                    int closePcmOut = ExtModuleManager.this.mAguiExtModule.closePcmOut();
+                    Log.i("ExtModuleManager", "closePcmOut ret:" + closePcmOut);
+                    ExtModuleManager.this.mAguiExtModule.stopPtt();
                 }
+            } catch (Exception e) {
+                Log.e("ExtModuleManager", "closePcmOut e:" + e);
             }
         }).start();
         onCallStateChanged(0);
-        this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.19
-            @Override // java.lang.Runnable
-            public void run() {
-                ExtModuleManager.this.mIsStopRecord = true;
-                ExtModuleManager.this.mIsPcmOutStart = false;
-            }
+        this.mHandler.postDelayed(() -> {
+            ExtModuleManager.this.mIsStopRecord = true;
+            ExtModuleManager.this.mIsPcmOutStart = false;
         }, 500L);
         if (this.mIsStopPlay) {
             releaseMusicFocus();
@@ -747,196 +702,184 @@ public class ExtModuleManager {
     }
 
     private void createCmdReadThread() {
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.20
-            @Override // java.lang.Runnable
-            public void run() {
-                while (!ExtModuleManager.this.mAllExit) {
-                    try {
-                        if (ExtModuleManager.this.mIsMCUStarted) {
-                            if (ExtModuleManager.this.mIsUpdatingDmr) {
-                                SystemClock.sleep(100L);
-                            } else {
+        new Thread(() -> {
+            while (!ExtModuleManager.this.mAllExit) {
+                try {
+                    if (ExtModuleManager.this.mIsMCUStarted) {
+                        if (ExtModuleManager.this.mIsUpdatingDmr) {
+                            SystemClock.sleep(100L);
+                        } else {
+                            try {
+                                if (ExtModuleManager.this.getAguiExtModule() != null) {
+                                    ExtModuleManager.this.mAguiExtModule.readTTyDevice(new IAguiExtModuleReadCallback.Stub() { // from class: com.agold.intercom.module.ExtModuleManager.20.1
+                                        @Override
+                                        // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
+                                        public void onReadDevice(byte[] bArr, int i) throws RemoteException {
+                                            if (i > 0) {
+                                                Log.i("ExtModuleManager", "onReadTTyDevice readSize:" + i);
+                                                ExtModuleManager.this.handleCmdResponse(bArr, i);
+                                            }
+                                        }
+                                    });
+                                }
+                            } catch (Exception e) {
+                                Log.e("ExtModuleManager", "createCmdReadThread ex:" + e);
+                            }
+                            SystemClock.sleep(100L);
+                        }
+                    } else {
+                        SystemClock.sleep(1000L);
+                    }
+                } catch (Exception e2) {
+                    Log.e("ExtModuleManager", "createCmdReadThread e:" + e2);
+                    return;
+                }
+            }
+            Log.i("ExtModuleManager", "createCmdReadThread exit");
+        }).start();
+    }
+
+    private void createCallInThread() {
+        new Thread(() -> {
+            while (!ExtModuleManager.this.mAllExit) {
+                try {
+                    if (ExtModuleManager.this.mIsMCUStarted) {
+                        if (ExtModuleManager.this.mIsUpdatingDmr) {
+                            SystemClock.sleep(100L);
+                        } else {
+                            try {
+                                if (ExtModuleManager.this.getAguiExtModule() != null) {
+                                    Log.i("ExtModuleManager", "createCallInThread start detectAudioinState");
+                                    int detectAudioinState = ExtModuleManager.this.getAguiExtModule().detectAudioinState();
+                                    Log.i("ExtModuleManager", "createCallInThread callInState:" + detectAudioinState);
+                                    ExtModuleManager.this.handleCallInStateChanged(detectAudioinState);
+                                }
+                            } catch (Exception e) {
+                                Log.e("ExtModuleManager", "createCallInThread ex:" + e);
+                            }
+                            SystemClock.sleep(100L);
+                        }
+                    } else {
+                        SystemClock.sleep(1000L);
+                    }
+                } catch (Exception e2) {
+                    Log.e("ExtModuleManager", "createCallInThread e:" + e2);
+                    return;
+                }
+            }
+            Log.i("ExtModuleManager", "createCallInThread exit");
+        }).start();
+    }
+
+    private void createAudioPlayThread() {
+        new Thread(() -> {
+            while (!ExtModuleManager.this.mAllExit) {
+                try {
+                    if (!ExtModuleManager.this.mIsStopPlay) {
+                        if (!ExtModuleManager.this.mIsPcmInStart) {
+                            SystemClock.sleep(10L);
+                        } else {
+                            Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack:" + ExtModuleManager.this.mAudioTrack);
+                            if (ExtModuleManager.this.mAudioTrack == null) {
+                               ExtModuleManager.this.createAudioTrack();
+                            }
+                            Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack getState:" + ExtModuleManager.this.mAudioTrack.getState() + ", getPlayState:" + ExtModuleManager.this.mAudioTrack.getPlayState());
+                            ExtModuleManager.this.mAudioTrack.play();
+                            while (ExtModuleManager.this.mIsPcmInStart) {
                                 try {
                                     if (ExtModuleManager.this.getAguiExtModule() != null) {
-                                        ExtModuleManager.this.mAguiExtModule.readTTyDevice(new IAguiExtModuleReadCallback.Stub() { // from class: com.agold.intercom.module.ExtModuleManager.20.1
+                                        ExtModuleManager.this.mAguiExtModule.readPcmDevice(new IAguiExtModuleReadCallback.Stub() { // from class: com.agold.intercom.module.ExtModuleManager.22.1
                                             @Override
                                             // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
                                             public void onReadDevice(byte[] bArr, int i) throws RemoteException {
                                                 if (i > 0) {
-                                                    Log.i("ExtModuleManager", "onReadTTyDevice readSize:" + i);
-                                                    ExtModuleManager.this.handleCmdResponse(bArr, i);
+                                                    Log.i("ExtModuleManager", "readPcmDevice readSize:" + i);
+                                                    try {
+                                                        if (ExtModuleManager.this.mAudioTrack != null) {
+                                                            ExtModuleManager.this.mAudioTrack.write(bArr, 0, i);
+                                                        }
+                                                        if (ExtModuleManager.this.mPcmRecordBOS != null) {
+                                                            ExtModuleManager.this.mPcmRecordBOS.write(bArr, 0, i);
+                                                        }
+                                                    } catch (Exception e) {
+                                                        Log.e("ExtModuleManager", "onReadDevice e:" + e);
+                                                    }
                                                 }
                                             }
                                         });
                                     }
                                 } catch (Exception e) {
-                                    Log.e("ExtModuleManager", "createCmdReadThread ex:" + e);
+                                    Log.e("ExtModuleManager", "createAudioPlayThread ex:" + e);
+                                    Log.e("ExtModuleManager", "createAudioPlayThread mAguiExtModule:" + ExtModuleManager.this.mAguiExtModule);
+                                    Log.e("ExtModuleManager", "createAudioPlayThread IAguiExtModule.getService():" + IAguiExtModule.getService());
+                                    ExtModuleManager.this.mAguiExtModule = null;
                                 }
-                                SystemClock.sleep(100L);
                             }
-                        } else {
-                            SystemClock.sleep(1000L);
+                            ExtModuleManager.this.mAudioTrack.stop();
+                            ExtModuleManager.this.mAudioTrack = null;
                         }
-                    } catch (Exception e2) {
-                        Log.e("ExtModuleManager", "createCmdReadThread e:" + e2);
-                        return;
+                    } else {
+                        SystemClock.sleep(10L);
                     }
+                } catch (Exception e2) {
+                    Log.e("ExtModuleManager", "createAudioPlayThread e:" + e2);
+                    return;
                 }
-                Log.i("ExtModuleManager", "createCmdReadThread exit");
             }
-        }).start();
-    }
-
-    private void createCallInThread() {
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.21
-            @Override // java.lang.Runnable
-            public void run() {
-                while (!ExtModuleManager.this.mAllExit) {
-                    try {
-                        if (ExtModuleManager.this.mIsMCUStarted) {
-                            if (ExtModuleManager.this.mIsUpdatingDmr) {
-                                SystemClock.sleep(100L);
-                            } else {
-                                try {
-                                    if (ExtModuleManager.this.getAguiExtModule() != null) {
-                                        Log.i("ExtModuleManager", "createCallInThread start detectAudioinState");
-                                        int detectAudioinState = ExtModuleManager.this.getAguiExtModule().detectAudioinState();
-                                        Log.i("ExtModuleManager", "createCallInThread callInState:" + detectAudioinState);
-                                        ExtModuleManager.this.handleCallInStateChanged(detectAudioinState);
-                                    }
-                                } catch (Exception e) {
-                                    Log.e("ExtModuleManager", "createCallInThread ex:" + e);
-                                }
-                                SystemClock.sleep(100L);
-                            }
-                        } else {
-                            SystemClock.sleep(1000L);
-                        }
-                    } catch (Exception e2) {
-                        Log.e("ExtModuleManager", "createCallInThread e:" + e2);
-                        return;
-                    }
-                }
-                Log.i("ExtModuleManager", "createCallInThread exit");
-            }
-        }).start();
-    }
-
-    private void createAudioPlayThread() {
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.22
-            @Override // java.lang.Runnable
-            public void run() {
-                while (!ExtModuleManager.this.mAllExit) {
-                    try {
-                        if (!ExtModuleManager.this.mIsStopPlay) {
-                            if (!ExtModuleManager.this.mIsPcmInStart) {
-                                SystemClock.sleep(10L);
-                            } else {
-                                Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack:" + ExtModuleManager.this.mAudioTrack);
-                                if (ExtModuleManager.this.mAudioTrack == null) {
-                                   ExtModuleManager.this.createAudioTrack();
-                                }
-                                Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack getState:" + ExtModuleManager.this.mAudioTrack.getState() + ", getPlayState:" + ExtModuleManager.this.mAudioTrack.getPlayState());
-                                ExtModuleManager.this.mAudioTrack.play();
-                                while (ExtModuleManager.this.mIsPcmInStart) {
-                                    try {
-                                        if (ExtModuleManager.this.getAguiExtModule() != null) {
-                                            ExtModuleManager.this.mAguiExtModule.readPcmDevice(new IAguiExtModuleReadCallback.Stub() { // from class: com.agold.intercom.module.ExtModuleManager.22.1
-                                                @Override
-                                                // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
-                                                public void onReadDevice(byte[] bArr, int i) throws RemoteException {
-                                                    if (i > 0) {
-                                                        Log.i("ExtModuleManager", "readPcmDevice readSize:" + i);
-                                                        try {
-                                                            if (ExtModuleManager.this.mAudioTrack != null) {
-                                                                ExtModuleManager.this.mAudioTrack.write(bArr, 0, i);
-                                                            }
-                                                            if (ExtModuleManager.this.mPcmRecordBOS != null) {
-                                                                ExtModuleManager.this.mPcmRecordBOS.write(bArr, 0, i);
-                                                            }
-                                                        } catch (Exception e) {
-                                                            Log.e("ExtModuleManager", "onReadDevice e:" + e);
-                                                        }
-                                                    }
-                                                }
-                                            });
-                                        }
-                                    } catch (Exception e) {
-                                        Log.e("ExtModuleManager", "createAudioPlayThread ex:" + e);
-                                        Log.e("ExtModuleManager", "createAudioPlayThread mAguiExtModule:" + ExtModuleManager.this.mAguiExtModule);
-                                        Log.e("ExtModuleManager", "createAudioPlayThread IAguiExtModule.getService():" + IAguiExtModule.getService());
-                                        ExtModuleManager.this.mAguiExtModule = null;
-                                    }
-                                }
-                                ExtModuleManager.this.mAudioTrack.stop();
-                                ExtModuleManager.this.mAudioTrack = null;
-                            }
-                        } else {
-                            SystemClock.sleep(10L);
-                        }
-                    } catch (Exception e2) {
-                        Log.e("ExtModuleManager", "createAudioPlayThread e:" + e2);
-                        return;
-                    }
-                }
-                Log.i("ExtModuleManager", "createAudioPlayThread exit");
-            }
+            Log.i("ExtModuleManager", "createAudioPlayThread exit");
         }).start();
     }
 
     private void createAudioRecordThread() {
-        new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.23
-            @Override // java.lang.Runnable
-            public void run() {
-                int read;
-                synchronized (ExtModuleManager.this.mAudioLock) {
-                    while (!ExtModuleManager.this.mAllExit) {
-                        try {
-                            if (ExtModuleManager.this.mIsStopRecord) {
-                                Log.i("ExtModuleManager", "createAudioRecordThread mAudioLock.wait!");
-                                ExtModuleManager.this.mAudioLock.wait();
+        new Thread(() -> {
+            int read;
+            synchronized (ExtModuleManager.this.mAudioLock) {
+                while (!ExtModuleManager.this.mAllExit) {
+                    try {
+                        if (ExtModuleManager.this.mIsStopRecord) {
+                            Log.i("ExtModuleManager", "createAudioRecordThread mAudioLock.wait!");
+                            ExtModuleManager.this.mAudioLock.wait();
+                        }
+                        if (!ExtModuleManager.this.mIsPcmOutStart) {
+                            SystemClock.sleep(10L);
+                        } else {
+                            byte[] bArr = new byte[1920];
+                            Log.i("ExtModuleManager", "createAudioRecordThread mAudioRecordPath:" + ExtModuleManager.this.mAudioRecordPath);
+                            File file = new File("/sdcard/Download/record/");
+                            if (!file.exists()) {
+                                file.mkdirs();
                             }
-                            if (!ExtModuleManager.this.mIsPcmOutStart) {
-                                SystemClock.sleep(10L);
-                            } else {
-                                byte[] bArr = new byte[1920];
-                                Log.i("ExtModuleManager", "createAudioRecordThread mAudioRecordPath:" + ExtModuleManager.this.mAudioRecordPath);
-                                File file = new File("/sdcard/Download/record/");
-                                if (!file.exists()) {
-                                    file.mkdirs();
+                            BufferedOutputStream bufferedOutputStream = null;
+                            if (ExtModuleManager.this.mAudioRecordPath != null) {
+                                File file2 = new File(ExtModuleManager.this.mAudioRecordPath);
+                                if (file2.exists()) {
+                                    file2.delete();
                                 }
-                                BufferedOutputStream bufferedOutputStream = null;
-                                if (ExtModuleManager.this.mAudioRecordPath != null) {
-                                    File file2 = new File(ExtModuleManager.this.mAudioRecordPath);
-                                    if (file2.exists()) {
-                                        file2.delete();
-                                    }
-                                    file2.createNewFile();
-                                    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(file2));
-                                }
-                                AudioRecord audioRecord = new AudioRecord(1, ExtModuleManager.this.mRecFrequency, 12, 2, AudioRecord.getMinBufferSize(ExtModuleManager.this.mRecFrequency, 12, 2));
-                                audioRecord.startRecording();
-                                while (ExtModuleManager.this.mIsPcmOutStart && (read = audioRecord.read(bArr, 0, ExtModuleManager.this.AUDIO_FRAME_SIZE)) >= 0) {
-                                    if (ExtModuleManager.this.getAguiExtModule() != null) {
-                                        ExtModuleManager.this.mAguiExtModule.writePcmDevice(bArr, read);
-                                    }
-                                    if (bufferedOutputStream != null) {
-                                        bufferedOutputStream.write(bArr, 0, read);
-                                    }
+                                file2.createNewFile();
+                                bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(file2));
+                            }
+                            AudioRecord audioRecord = new AudioRecord(1, ExtModuleManager.this.mRecFrequency, 12, 2, AudioRecord.getMinBufferSize(ExtModuleManager.this.mRecFrequency, 12, 2));
+                            audioRecord.startRecording();
+                            while (ExtModuleManager.this.mIsPcmOutStart && (read = audioRecord.read(bArr, 0, ExtModuleManager.this.AUDIO_FRAME_SIZE)) >= 0) {
+                                if (ExtModuleManager.this.getAguiExtModule() != null) {
+                                    ExtModuleManager.this.mAguiExtModule.writePcmDevice(bArr, read);
                                 }
                                 if (bufferedOutputStream != null) {
-                                    bufferedOutputStream.close();
+                                    bufferedOutputStream.write(bArr, 0, read);
                                 }
-                                audioRecord.stop();
-                                audioRecord.release();
                             }
-                        } catch (Exception e) {
-                            Log.i("ExtModuleManager", "createAudioRecordThread error:" + e);
+                            if (bufferedOutputStream != null) {
+                                bufferedOutputStream.close();
+                            }
+                            audioRecord.stop();
+                            audioRecord.release();
                         }
+                    } catch (Exception e) {
+                        Log.i("ExtModuleManager", "createAudioRecordThread error:" + e);
                     }
                 }
-                Log.i("ExtModuleManager", "createAudioRecordThread exit");
             }
+            Log.i("ExtModuleManager", "createAudioRecordThread exit");
         }).start();
     }
 
@@ -1056,17 +999,15 @@ public class ExtModuleManager {
         if (this.mAudioState == 0) {
             releaseMusicFocus();
         }
-        this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.24
-            @Override // java.lang.Runnable
-            public void run() {
-                if (ExtModuleManager.this.mIsStopPlay && ExtModuleManager.this.mHasNewMessage) {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                        ExtModuleManager.this.mExtModuleProtocol.getDmr09MsgContent();
-                    } else {
-                        ExtModuleManager.this.mExtModuleProtocol.getMsgContent();
-                    }
-                    ExtModuleManager.this.mHasNewMessage = false;
+
+        this.mHandler.postDelayed(() -> {
+            if (ExtModuleManager.this.mIsStopPlay && ExtModuleManager.this.mHasNewMessage) {
+                if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+                    ExtModuleManager.this.mExtModuleProtocol.getDmr09MsgContent();
+                } else {
+                    ExtModuleManager.this.mExtModuleProtocol.getMsgContent();
                 }
+                ExtModuleManager.this.mHasNewMessage = false;
             }
         }, 500L);
         Log.i("ExtModuleManager", "stopPlay end-----------------");
@@ -1302,12 +1243,7 @@ public class ExtModuleManager {
             return;
         }
         this.mHandler.removeMessages(14);
-        this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.28
-            @Override // java.lang.Runnable
-            public void run() {
-                ExtModuleManager.this.mIsPTTStopComplete = true;
-            }
-        }, 1000L);
+        this.mHandler.postDelayed(() -> ExtModuleManager.this.mIsPTTStopComplete = true, 1000L);
         if (this.mIsStopRecord && this.mHasNewMessage) {
             if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
                 this.mExtModuleProtocol.getDmr09MsgContent();
@@ -1491,12 +1427,9 @@ public class ExtModuleManager {
         } else if (i == 3) {
             stopPlay();
             if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                this.mHandler.postDelayed(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.33
-                    @Override // java.lang.Runnable
-                    public void run() {
-                        if (ExtModuleManager.this.mIsStopPlay) {
-                            ExtModuleManager.this.mExtModuleProtocol.getDmr09MsgContent();
-                        }
+                this.mHandler.postDelayed(() -> {
+                    if (ExtModuleManager.this.mIsStopPlay) {
+                        ExtModuleManager.this.mExtModuleProtocol.getDmr09MsgContent();
                     }
                 }, 800L);
             }
