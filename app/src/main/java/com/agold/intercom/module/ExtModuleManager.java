@@ -16,7 +16,6 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
-import android.os.storage.StorageManager;
 import android.util.Log;
 
 import com.agold.intercom.data.Channel;
@@ -46,7 +45,6 @@ public class ExtModuleManager {
 
     private final AudioManager mAudioManager;
     private final ExtModuleProtocol mExtModuleProtocol;
-    private final PowerManager mPowerManager;
     private final SoundPool mSoundPool;
     private final PowerManager.WakeLock mWakeLock;
     private final byte[] mCmdWriteBuffer = new byte[1920];
@@ -194,10 +192,8 @@ public class ExtModuleManager {
         ExtModuleProtocol extModuleProtocol = new ExtModuleProtocol();
         this.mExtModuleProtocol = extModuleProtocol;
         extModuleProtocol.setExtModuleManager(this);
-        StorageManager storageManager = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
         this.mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        this.mPowerManager = powerManager;
         this.mWakeLock = powerManager.newWakeLock(26, "Intercom");
         this.mSoundPool = new SoundPool.Builder()
                 .setMaxStreams(10)
