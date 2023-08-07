@@ -213,9 +213,7 @@ public class ExtModuleManager {
             if (sInstance == null) {
                 sInstance = new ExtModuleManager(context);
             }
-            if (sInstance != null) {
-                sInstance.init(context);
-            }
+            sInstance.init(context);
             extModuleManager = sInstance;
         }
         return extModuleManager;
