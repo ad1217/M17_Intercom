@@ -407,8 +407,7 @@ public class ExtModuleManager {
         stopMcu();
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void handleMcuStartFinished() {
+    private void handleMcuStartFinished() {
         Log.i("ExtModuleManager", "handleMcuStartFinished mIsSetChannelFinished:" + this.mIsSetChannelFinished);
         this.mIsUsbStarted = true;
         this.mIsSetChannelFinished = false;
@@ -422,8 +421,7 @@ public class ExtModuleManager {
         this.mHandler.postDelayed(ExtModuleManager.this::getMcuFirmwareVersion, 1000L);
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void getMcuFirmwareVersion() {
+    private void getMcuFirmwareVersion() {
         Log.i("ExtModuleManager", "getMcuFirmwareVersion mCurrFirmware:" + this.mCurrFirmware + ", mIsCmdStart:" + this.mIsCmdStart);
         if (this.mIsCmdStart) {
             this.mCurrFirmware = null;
@@ -473,8 +471,7 @@ public class ExtModuleManager {
         }
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void openPcmIn() {
+    private void openPcmIn() {
         new Thread(() -> {
             try {
                 if (ExtModuleManager.this.getAguiExtModule() != null) {
@@ -490,8 +487,7 @@ public class ExtModuleManager {
         }).start();
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void closePcmIn() {
+    private void closePcmIn() {
         new Thread(() -> {
             try {
                 if (ExtModuleManager.this.getAguiExtModule() != null) {
@@ -505,8 +501,7 @@ public class ExtModuleManager {
         }).start();
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void openPcmOut() {
+    private void openPcmOut() {
         Log.i("ExtModuleManager", "openPcmOut mIsStopRecord:" + this.mIsStopRecord);
         if (this.mIsStopRecord) {
             synchronized (this.mAudioLock) {
@@ -533,8 +528,7 @@ public class ExtModuleManager {
         }
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void closePcmOut() {
+    private void closePcmOut() {
         Log.i("ExtModuleManager", "closePcmOut mIsStopRecord:" + this.mIsStopRecord);
         if (this.mIsStopRecord) {
             return;
@@ -926,8 +920,7 @@ public class ExtModuleManager {
         this.mCurrentAudioFocusRequest = null;
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public int handleCmdResponse(byte[] response, int length) {
+    private int handleCmdResponse(byte[] response, int length) {
         byte[] bArr2 = new byte[length];
         System.arraycopy(response, 0, bArr2, 0, length);
         String byte2HexStrNoBlank = IComUtils.byte2HexStrNoBlank(bArr2);
@@ -1251,8 +1244,7 @@ public class ExtModuleManager {
         stopPlay();
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void handleCallInStateChanged(int i) {
+    private void handleCallInStateChanged(int i) {
         Log.i("ExtModuleManager", "handleCallInStateChanged state:" + i + ", mCallInStateChangedCount:" + this.mCallInStateChangedCount);
         this.mCallInStateChangedCount = 0;
         if (i == 0) {
