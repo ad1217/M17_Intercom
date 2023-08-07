@@ -2,11 +2,15 @@ package com.agold.intercom.module;
 
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.media.SoundPool;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.RemoteException;
@@ -70,7 +74,7 @@ public class ExtModuleManager {
     private boolean mIsPcmOutStart = false;
     private boolean mIsUpdatingDmr = false;
     private boolean mAllExit = true;
-    private boolean mIsCurrMusicFocus = false;
+    private AudioFocusRequest mCurrentAudioFocusRequest = null;
     private String mAudioRecordPath = null;
     private String mCurrFirmware = null;
     private int mPreSetChannel = 0;
@@ -84,7 +88,11 @@ public class ExtModuleManager {
     private long mStartPlayTime = 0;
     private long mStartCallTime = 0;
     private boolean mIsStopping = false;
-    private final Handler mHandler = new Handler() { // from class: com.agold.intercom.module.ExtModuleManager.1
+    private final AudioAttributes mAudioAttributes = new AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build();
+    private final Handler mHandler = new Handler(Looper.getMainLooper()) {
         @Override // android.os.Handler
         public void handleMessage(Message message) {
             switch (message.what) {
@@ -181,6 +189,7 @@ public class ExtModuleManager {
     };
     private boolean mHasNewMessage = false;
     private int mCallInStateChangedCount = 0;
+
     public ExtModuleManager(Context context) {
         this.mRecFrequency = 48000;
         this.mPlayFrequency = 48000;
@@ -194,7 +203,10 @@ public class ExtModuleManager {
         PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         this.mPowerManager = powerManager;
         this.mWakeLock = powerManager.newWakeLock(26, "Intercom");
-        this.mSoundPool = new SoundPool(10, 1, 5);
+        this.mSoundPool = new SoundPool.Builder()
+                .setMaxStreams(10)
+                .setAudioAttributes(this.mAudioAttributes)
+			    .build();
         if (SystemProperties.getBoolean("ro.agold.extmodule.32k", false)) {
             this.mRecFrequency = 32000;
             this.mPlayFrequency = 32000;
@@ -363,14 +375,6 @@ public class ExtModuleManager {
         return this.mExtModuleProtocol;
     }
 
-    public boolean isScreenOn() {
-        PowerManager powerManager = this.mPowerManager;
-        if (powerManager != null) {
-            return powerManager.isScreenOn();
-        }
-        return false;
-    }
-
     public void setCallbackListener(CallbackListener callbackListener, String str) {
         synchronized (this.mListenerMaps) {
             Iterator<String> it = this.mListenerMaps.keySet().iterator();
@@ -407,9 +411,7 @@ public class ExtModuleManager {
         this.mHandler.sendMessage(this.mHandler.obtainMessage(1));
         this.mHandler.removeMessages(2);
         this.mHandler.sendMessageDelayed(this.mHandler.obtainMessage(2), 30000L);
-        int minBufferSize = AudioTrack.getMinBufferSize(this.mPlayFrequency, 12, 2);
-        Log.i("ExtModuleManager", "start playBufSize:" + minBufferSize);
-        this.mExtAudioTrack = new AudioTrack(3, this.mPlayFrequency, 12, 2, minBufferSize, 1);
+        this.createAudioTrack();
     }
 
     public void stop() {
@@ -728,6 +730,22 @@ public class ExtModuleManager {
         }
     }
 
+    private void createAudioTrack() {
+        int minBufferSize = AudioTrack.getMinBufferSize(this.mPlayFrequency, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);
+        Log.i("ExtModuleManager", "start playBufSize:" + minBufferSize);
+        this.mExtAudioTrack = new AudioTrack.Builder()
+                .setAudioAttributes(this.mAudioAttributes)
+                .setAudioFormat(new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(this.mPlayFrequency)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                        .build()
+                )
+                .setBufferSizeInBytes(minBufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build();
+    }
+
     private void createCmdReadThread() {
         new Thread(new Runnable() { // from class: com.agold.intercom.module.ExtModuleManager.20
             @Override // java.lang.Runnable
@@ -816,9 +834,7 @@ public class ExtModuleManager {
                             } else {
                                 Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack:" + ExtModuleManager.this.mAudioTrack);
                                 if (ExtModuleManager.this.mAudioTrack == null) {
-                                    int minBufferSize = AudioTrack.getMinBufferSize(ExtModuleManager.this.mPlayFrequency, 12, 2);
-                                    Log.i("ExtModuleManager", "createAudioPlayThread start playBufSize:" + minBufferSize);
-                                    ExtModuleManager.this.mAudioTrack = new AudioTrack(3, ExtModuleManager.this.mPlayFrequency, 12, 2, minBufferSize, 1);
+                                   ExtModuleManager.this.createAudioTrack();
                                 }
                                 Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack getState:" + ExtModuleManager.this.mAudioTrack.getState() + ", getPlayState:" + ExtModuleManager.this.mAudioTrack.getPlayState());
                                 ExtModuleManager.this.mAudioTrack.play();
@@ -1084,28 +1100,30 @@ public class ExtModuleManager {
     }
 
     private int requestMusicFocus() {
-        Log.i("ExtModuleManager", "requestMusicFocus mIsCurrMusicFocus:" + this.mIsCurrMusicFocus);
-        if (this.mIsCurrMusicFocus) {
+        Log.i("ExtModuleManager", "requestMusicFocus mCurrentAudioFocusRequest:" + this.mCurrentAudioFocusRequest);
+        if (this.mCurrentAudioFocusRequest != null) {
             return 1;
         }
-        AudioManager audioManager = this.mAudioManager;
-        if (audioManager != null) {
-            int requestAudioFocus = audioManager.requestAudioFocus(null, 3, 4);
+        if (this.mAudioManager != null) {
+            AudioFocusRequest focusRequest = new AudioFocusRequest
+				.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+				.setAudioAttributes(this.mAudioAttributes)
+				.build();
+            int requestAudioFocus = this.mAudioManager.requestAudioFocus(focusRequest);
             Log.i("ExtModuleManager", "requestMusicFocus status:" + requestAudioFocus);
-            this.mIsCurrMusicFocus = true;
+            this.mCurrentAudioFocusRequest = focusRequest;
             return 1;
         }
         return 0;
     }
 
     private void releaseMusicFocus() {
-        Log.i("ExtModuleManager", "releaseMusicFocus mIsCurrMusicFocus:" + this.mIsCurrMusicFocus);
-        AudioManager audioManager = this.mAudioManager;
-        if (audioManager == null || !this.mIsCurrMusicFocus) {
+        Log.i("ExtModuleManager", "releaseMusicFocus mCurrentAudioFocusRequest:" + this.mCurrentAudioFocusRequest);
+        if (this.mAudioManager == null || this.mCurrentAudioFocusRequest == null) {
             return;
         }
-        audioManager.abandonAudioFocus(null);
-        this.mIsCurrMusicFocus = false;
+        this.mAudioManager.abandonAudioFocusRequest(this.mCurrentAudioFocusRequest);
+        this.mCurrentAudioFocusRequest = null;
     }
 
     /* JADX INFO: Access modifiers changed from: private */
