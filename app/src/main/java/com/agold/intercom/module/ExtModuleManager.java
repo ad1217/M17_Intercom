@@ -273,10 +273,6 @@ public class ExtModuleManager {
         mContext = context;
     }
 
-    public ExtModuleProtocol getExtModuleProtocol() {
-        return this.mExtModuleProtocol;
-    }
-
     public void start() {
         Log.i("ExtModuleManager", "start mAllExit:" + this.mAllExit + ", mIsCmdStart:" + this.mIsCmdStart + ", mIsMCUStarted:" + this.mIsMCUStarted);
         this.mAllExit = false;
@@ -762,22 +758,6 @@ public class ExtModuleManager {
         }).start();
     }
 
-    public boolean isCmdStarted() {
-        return this.mIsCmdStart;
-    }
-
-    public boolean isRecordStoped() {
-        return this.mIsStopRecord;
-    }
-
-    public boolean isPttStoped() {
-        return this.mIsPTTStopComplete;
-    }
-
-    public boolean isPlayStoped() {
-        return this.mIsStopPlay;
-    }
-
     public int startPlay() {
         Log.i("ExtModuleManager", "startPlay start mIsStopPlay:" + this.mIsStopPlay);
         if (!this.mIsStopPlay) {
@@ -1153,10 +1133,6 @@ public class ExtModuleManager {
         }
     }
 
-    public int getCurrBatteryLevel() {
-        return this.mCurrBatteryLevel;
-    }
-
     public int checkTemperature() {
         Log.i("ExtModuleManager", "checkTemperature mCurrTemperature:" + this.mCurrTemperature);
         int i = this.mCurrTemperature;
@@ -1320,10 +1296,6 @@ public class ExtModuleManager {
             }
             Log.i("ExtModuleManager", "handleRecvSendStateChange 111 dataLen:" + bytesToInt2);
         }
-    }
-
-    public AudioTrack getAudioTrack() {
-        return this.mExtAudioTrack;
     }
 
     public void setChannel(Channel channel) {
