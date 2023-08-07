@@ -29,8 +29,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.concurrent.locks.ReentrantLock;
 
 import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModule;
@@ -53,7 +51,6 @@ public class ExtModuleManager {
     private final SoundPool mSoundPool;
     private final PowerManager.WakeLock mWakeLock;
     private final byte[] mCmdWriteBuffer = new byte[1920];
-    private final HashMap<String, CallbackListener> mListenerMaps = new HashMap<>();
     private final Object mAudioLock = new Object();
     AudioTrack mAudioTrack;
     AudioTrack mExtAudioTrack;
@@ -100,13 +97,13 @@ public class ExtModuleManager {
                     if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
                         return;
                     }
-                    ExtModuleManager.this.onManagerStarted();
+//                    ExtModuleManager.this.onManagerStarted();
                     return;
                 case 2:
                     if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
                         return;
                     }
-                    ExtModuleManager.this.onManagerStartTimeout();
+//                    ExtModuleManager.this.onManagerStartTimeout();
                     return;
                 case 3:
                     if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
@@ -122,16 +119,16 @@ public class ExtModuleManager {
 //                    ExtModuleManager.this.handleMcuUpdateFinished();
                     return;
                 case 5:
-                    ExtModuleManager.this.onSetChannelComplete();
+//                    ExtModuleManager.this.onSetChannelComplete();
                     return;
                 case 6:
                     ExtModuleManager.this.onSetChannelTimeout();
                     return;
                 case 7:
-                    ExtModuleManager.this.onMcuStartComplete();
+//                    ExtModuleManager.this.onMcuStartComplete();
                     return;
                 case 8:
-                    ExtModuleManager.this.onResetFactoryStart();
+//                    ExtModuleManager.this.onResetFactoryStart();
                     return;
                 case 9:
 //                    ExtModuleManager.this.onMsgReceived(message.arg1, (String) message.obj);
@@ -163,7 +160,7 @@ public class ExtModuleManager {
                     String str = (String) message.obj;
                     Log.i("ExtModuleManager", "MSG_GET_INCALL_INFO callInfo:" + str);
                     String[] split = str.split(":");
-                    ExtModuleManager.this.onGetIncallInfo(Integer.parseInt(split[0]), Integer.parseInt(split[1]), Integer.parseInt(split[2]));
+//                    ExtModuleManager.this.onGetIncallInfo(Integer.parseInt(split[0]), Integer.parseInt(split[1]), Integer.parseInt(split[2]));
                     return;
                 case 18:
                     ExtModuleManager.this.openPcmIn();
@@ -178,10 +175,10 @@ public class ExtModuleManager {
                     ExtModuleManager.this.closePcmOut();
                     return;
                 case 22:
-                    ExtModuleManager.this.onScanChannelsStart();
+//                    ExtModuleManager.this.onScanChannelsStart();
                     return;
                 case 23:
-                    ExtModuleManager.this.onScanChannelsComplete();
+//                    ExtModuleManager.this.onScanChannelsComplete();
                     return;
                 default:
             }
@@ -228,23 +225,11 @@ public class ExtModuleManager {
         return extModuleManager;
     }
 
-    private void onManagerStarted() {
-        Log.i("ExtModuleManager", "onManagerStarted");
-        this.mListenerMaps.values().forEach(CallbackListener::onManagerStarted);
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public void onManagerStartTimeout() {
-        Log.i("ExtModuleManager", "onManagerStartTimeout");
-        this.mListenerMaps.values().forEach(CallbackListener::onManagerStartTimeout);
-    }
-
     private void onCallStateChanged(int i) {
         Log.i("ExtModuleManager", "onCallStateChanged currState:" + i);
         Intent intent = new Intent("agui.intercom.intent.action.CALL_STATE_CHANGED");
         intent.putExtra("callstate", i);
         mContext.sendBroadcast(intent);
-        this.mListenerMaps.values().forEach(listenerCallback -> listenerCallback.onCallStateChanged(i));
     }
 
     private void onPlayStateChanged(int i) {
@@ -252,13 +237,6 @@ public class ExtModuleManager {
         Intent intent = new Intent("agui.intercom.intent.action.PLAY_STATE_CHANGED");
         intent.putExtra("playstate", i);
         mContext.sendBroadcast(intent);
-        this.mListenerMaps.values().forEach(listenerCallback -> listenerCallback.onPlayStateChanged(i));
-    }
-
-    private void onSetChannelComplete() {
-        Log.i("ExtModuleManager", "onSetChannelComplete");
-
-        this.mListenerMaps.values().forEach(CallbackListener::onSetChannelComplete);
     }
 
     private void onSetChannelTimeout() {
@@ -268,45 +246,6 @@ public class ExtModuleManager {
         }
         this.mIsSetChannelFinished = true;
         mContext.sendBroadcast(new Intent("agui.intercom.intent.action.START_TIMEOUT"));
-        this.mListenerMaps.values().forEach(CallbackListener::onSetChannelTimeout);
-    }
-
-    private void onMcuStartComplete() {
-        Log.i("ExtModuleManager", "onMcuStartComplete");
-        this.mListenerMaps.values().forEach(CallbackListener::onMcuStartComplete);
-    }
-
-    private void onResetFactoryStart() {
-		this.mListenerMaps.values().forEach(CallbackListener::onResetFactoryStart);
-    }
-
-    private void onScanChannelsStart() {
-        Log.i("ExtModuleManager", "onScanChannelsStart");
-		this.mListenerMaps.values().forEach(CallbackListener::onScanChannelsStart);
-    }
-
-    private void onScanChannelsComplete() {
-        Log.i("ExtModuleManager", "onScanChannelsComplete");
-		this.mListenerMaps.values().forEach(CallbackListener::onScanChannelsComplete);
-    }
-
-    private void onChargeStateChanged() {
-        Log.i("ExtModuleManager", "onChargeStateChanged");
-        if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-            return;
-        }
-		this.mListenerMaps.values().forEach(CallbackListener::onChargeStateChanged);
-    }
-
-    private void onUSBChargeChanged(boolean z) {
-        if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-            return;
-        }
-		this.mListenerMaps.values().forEach(listenerCallback -> listenerCallback.onUSBChargeChanged(z));
-    }
-
-    private void onGetIncallInfo(int i, int i2, int i3) {
-        this.mListenerMaps.values().forEach(listenerCallback -> listenerCallback.onGetIncallInfo(i, i2, i3));
     }
 
     public synchronized IAguiExtModule getAguiExtModule() {
@@ -336,29 +275,6 @@ public class ExtModuleManager {
 
     public ExtModuleProtocol getExtModuleProtocol() {
         return this.mExtModuleProtocol;
-    }
-
-    public void setCallbackListener(CallbackListener callbackListener, String str) {
-        synchronized (this.mListenerMaps) {
-            Iterator<String> it = this.mListenerMaps.keySet().iterator();
-            if (it.hasNext()) {
-                String next = it.next();
-                this.mListenerMaps.get(next);
-                this.mListenerMaps.remove(next);
-            }
-            this.mListenerMaps.put(str, callbackListener);
-        }
-    }
-
-    public void removeCallbackListener(String str) {
-        synchronized (this.mListenerMaps) {
-            Iterator<String> it = this.mListenerMaps.keySet().iterator();
-            if (it.hasNext()) {
-                String next = it.next();
-                this.mListenerMaps.get(next);
-                this.mListenerMaps.remove(next);
-            }
-        }
     }
 
     public void start() {
@@ -1258,7 +1174,6 @@ public class ExtModuleManager {
         this.mCurrBatteryLevel = i;
         this.mCurrTemperature = i2;
         this.mIsUSBCharge = z2;
-        onUSBChargeChanged(z2);
         if (this.mIsCharging != z) {
             if (z) {
                 handleChargeConnected();
@@ -1283,7 +1198,6 @@ public class ExtModuleManager {
     public void handleChargeConnected() {
         Log.i("ExtModuleManager", "handleChargeConnected mIsCmdStart:" + this.mIsCmdStart + ", mIsSetChannelFinished:" + this.mIsSetChannelFinished);
         if (this.mIsCmdStart) {
-            onChargeStateChanged();
             resetMcu();
         }
     }
@@ -1291,7 +1205,6 @@ public class ExtModuleManager {
     public void handleChargeDisconnected() {
         Log.i("ExtModuleManager", "handleChargeDisconnected mIsCmdStart:" + this.mIsCmdStart + ", mIsSetChannelFinished:" + this.mIsSetChannelFinished);
         if (this.mIsCmdStart) {
-            onChargeStateChanged();
             resetMcu();
         }
     }
@@ -1299,7 +1212,6 @@ public class ExtModuleManager {
     public void handleHeadsetPlugChanged(int i) {
         Log.i("ExtModuleManager", "handleHeadsetPlugChanged state:" + i);
         if ((i == 1 || i == 0) && this.mIsCmdStart) {
-            onChargeStateChanged();
             resetMcu();
         }
     }
@@ -1532,46 +1444,6 @@ public class ExtModuleManager {
         }
         return true;
     }
-
-    /* loaded from: classes.dex */
-    public interface CallbackListener {
-        void onCallStateChanged(int i);
-
-        void onChargeStateChanged();
-
-        void onDmrUpdateFailed();
-
-        void onDmrUpdateStateChanged(int i);
-
-        void onGetIncallInfo(int i, int i2, int i3);
-
-        void onManagerStartTimeout();
-
-        void onManagerStarted();
-
-        void onMcuStartComplete();
-
-        void onMcuUpdateStateChanged(int i);
-
-        void onMsgReceived();
-
-        void onPlayStateChanged(int i);
-
-        void onResetFactoryStart();
-
-        void onScanChannelsComplete();
-
-        void onScanChannelsStart();
-
-        void onSetChannelComplete();
-
-        void onSetChannelStart();
-
-        void onSetChannelTimeout();
-
-        void onUSBChargeChanged(boolean z);
-    }
-
 
 //    public void showInstallAntennaToast(Context context) {
 //        Toast.makeText(context, (int) R.string.install_antenna, Toast.LENGTH_SHORT).show();
