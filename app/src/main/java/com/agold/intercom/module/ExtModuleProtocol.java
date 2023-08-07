@@ -5,7 +5,6 @@ import android.util.Log;
 
 import com.agold.intercom.utils.IComUtils;
 
-/* loaded from: classes.dex */
 public class ExtModuleProtocol {
     private ExtModuleManager mExtModuleManager;
 

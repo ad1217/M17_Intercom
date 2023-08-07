@@ -10,7 +10,7 @@ import android.os.RemoteException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Objects;
-/* loaded from: classes.dex */
+
 public interface IAguiExtModule extends IHwInterface {
     int closePcmIn() throws RemoteException;
 
@@ -73,7 +73,6 @@ public interface IAguiExtModule extends IHwInterface {
         return getService("default");
     }
 
-    /* loaded from: classes.dex */
     public static final class Proxy implements IAguiExtModule {
         private IHwBinder mRemote;
 

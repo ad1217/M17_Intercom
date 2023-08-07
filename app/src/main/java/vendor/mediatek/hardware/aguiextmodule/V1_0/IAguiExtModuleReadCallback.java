@@ -11,13 +11,12 @@ import android.os.NativeHandle;
 import android.os.RemoteException;
 import java.util.ArrayList;
 import java.util.Arrays;
-/* loaded from: classes.dex */
+
 public interface IAguiExtModuleReadCallback extends IHwInterface {
     IHwBinder asBinder();
 
     void onReadDevice(byte[] bArr, int i) throws RemoteException;
 
-    /* loaded from: classes.dex */
     public static abstract class Stub extends HwBinder implements IAguiExtModuleReadCallback {
         @Override // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
         public IHwBinder asBinder() {

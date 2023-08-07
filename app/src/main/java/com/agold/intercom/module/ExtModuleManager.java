@@ -34,7 +34,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModule;
 import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback;
 
-/* loaded from: classes.dex */
 public class ExtModuleManager {
     private static Context mContext;
     private static ExtModuleManager sInstance;

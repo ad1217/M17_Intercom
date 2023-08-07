@@ -4,7 +4,7 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.os.SystemProperties;
 import android.util.Log;
-/* loaded from: classes.dex */
+
 public class IComUtils {
     private static final byte[] PROTOCAL_HEAD = {126, -106, 105};
     private static final byte[] PROTOCAL_TAIL = {-127};
