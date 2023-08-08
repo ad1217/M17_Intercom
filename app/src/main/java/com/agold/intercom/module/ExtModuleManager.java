@@ -52,7 +52,6 @@ public class ExtModuleManager {
     private final byte[] mCmdWriteBuffer = new byte[1920];
     private final Object mAudioLock = new Object();
     AudioTrack mAudioTrack;
-    AudioTrack mExtAudioTrack;
     private int AUDIO_FRAME_SIZE;
     private IAguiExtModule mAguiExtModule;
     private BufferedOutputStream mPcmRecordBOS;
@@ -280,7 +279,6 @@ public class ExtModuleManager {
         this.mHandler.sendMessage(this.mHandler.obtainMessage(1));
         this.mHandler.removeMessages(2);
         this.mHandler.sendMessageDelayed(this.mHandler.obtainMessage(2), 30000L);
-        this.createAudioTrack();
     }
 
     public void stop() {
@@ -309,15 +307,9 @@ public class ExtModuleManager {
         if (wakeLock != null && wakeLock.isHeld()) {
             this.mWakeLock.release();
         }
-        AudioTrack audioTrack = this.mAudioTrack;
-        if (audioTrack != null) {
-            audioTrack.release();
+        if (this.mAudioTrack != null) {
+            this.mAudioTrack.release();
             this.mAudioTrack = null;
-        }
-        AudioTrack audioTrack2 = this.mExtAudioTrack;
-        if (audioTrack2 != null) {
-            audioTrack2.release();
-            this.mExtAudioTrack = null;
         }
     }
 
@@ -548,22 +540,6 @@ public class ExtModuleManager {
         }
     }
 
-    private void createAudioTrack() {
-        int minBufferSize = AudioTrack.getMinBufferSize(this.mPlayFrequency, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);
-        Log.i("ExtModuleManager", "start playBufSize:" + minBufferSize);
-        this.mExtAudioTrack = new AudioTrack.Builder()
-                .setAudioAttributes(this.mAudioAttributes)
-                .setAudioFormat(new AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(this.mPlayFrequency)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                        .build()
-                )
-                .setBufferSizeInBytes(minBufferSize)
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .build();
-    }
-
     private void createCmdReadThread() {
         new Thread(() -> {
             while (!ExtModuleManager.this.mAllExit) {
@@ -644,8 +620,21 @@ public class ExtModuleManager {
                         } else {
                             Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack:" + ExtModuleManager.this.mAudioTrack);
                             if (ExtModuleManager.this.mAudioTrack == null) {
-                               ExtModuleManager.this.createAudioTrack();
+                                int minBufferSize = AudioTrack.getMinBufferSize(this.mPlayFrequency, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);
+                                Log.i("ExtModuleManager", "createAudioTrack playBufSize:" + minBufferSize);
+                                ExtModuleManager.this.mAudioTrack = new AudioTrack.Builder()
+                                        .setAudioAttributes(this.mAudioAttributes)
+                                        .setAudioFormat(new AudioFormat.Builder()
+                                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                                .setSampleRate(this.mPlayFrequency)
+                                                .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                                                .build()
+                                        )
+                                        .setBufferSizeInBytes(minBufferSize)
+                                        .setTransferMode(AudioTrack.MODE_STREAM)
+                                        .build();
                             }
+                            Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack:" + ExtModuleManager.this.mAudioTrack);
                             Log.i("ExtModuleManager", "createAudioPlayThread mAudioTrack getState:" + ExtModuleManager.this.mAudioTrack.getState() + ", getPlayState:" + ExtModuleManager.this.mAudioTrack.getPlayState());
                             ExtModuleManager.this.mAudioTrack.play();
                             while (ExtModuleManager.this.mIsPcmInStart) {
