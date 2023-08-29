@@ -8,7 +8,6 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
-import android.media.SoundPool
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
@@ -36,7 +35,6 @@ import kotlin.concurrent.withLock
 class ExtModuleManager(context: Context) {
     private val mAudioManager: AudioManager?
     private val mExtModuleProtocol: ExtModuleProtocol?
-    private val mSoundPool: SoundPool
     private val mWakeLock: PowerManager.WakeLock
     private val mCmdWriteBuffer = ByteArray(1920)
     private val mAudioLock = ReentrantLock()
@@ -147,10 +145,6 @@ class ExtModuleManager(context: Context) {
         mAudioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         mWakeLock = powerManager.newWakeLock(26, "Intercom")
-        mSoundPool = SoundPool.Builder()
-            .setMaxStreams(10)
-            .setAudioAttributes(mAudioAttributes)
-            .build()
         if (SystemProperties.getBoolean("ro.agold.extmodule.32k", false)) {
             mRecFrequency = 32000
             mPlayFrequency = 32000
@@ -1380,11 +1374,6 @@ class ExtModuleManager(context: Context) {
             mAudioRecordPath = null
         }
         Log.i("ExtModuleManager", "setAudioRecordPath mAudioRecordPath:" + mAudioRecordPath)
-    }
-
-    fun playSound(i: Int) {
-        Log.i("ExtModuleManager", "playSound mSoundPool:" + mSoundPool + ", soundID:" + i)
-        mSoundPool.play(i, 1.0f, 1.0f, 1, 0, 1.0f)
     }
 
     @Throws(Exception::class)
