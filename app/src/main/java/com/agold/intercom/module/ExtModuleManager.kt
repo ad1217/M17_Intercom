@@ -78,121 +78,61 @@ class ExtModuleManager(context: Context) {
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
     private val mHandler: Handler = object : Handler(Looper.getMainLooper()) {
-        // android.os.Handler
         override fun handleMessage(message: Message) {
             when (message.what) {
-                1 -> {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-                        return
-                    }
-                    //                    ExtModuleManager.this.onManagerStarted();
-                    return
+                1 -> if (!SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
+                    // onManagerStarted();
                 }
 
-                2 -> {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-                        return
-                    }
-                    //                    ExtModuleManager.this.onManagerStartTimeout();
-                    return
+                2 -> if (!SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
+                    // onManagerStartTimeout();
                 }
 
-                3 -> {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-                        return
-                    }
-                    //                    ExtModuleManager.this.onMcuUpdateStateChanged(1);
-                    return
+                3 -> if (!SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
+                    // onMcuUpdateStateChanged(1);
                 }
 
-                4 -> {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-                        return
-                    }
-                    //                    ExtModuleManager.this.onMcuUpdateStateChanged(0);
-//                    ExtModuleManager.this.handleMcuUpdateFinished();
-                    return
+                4 -> if (!SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
+                    // onMcuUpdateStateChanged(0);
+                    // handleMcuUpdateFinished();
                 }
 
-                5 -> //                    ExtModuleManager.this.onSetChannelComplete();
-                    return
-
-                6 -> {
-                    onSetChannelTimeout()
-                    return
+                5 -> {} // onSetChannelComplete();
+                6 -> onSetChannelTimeout()
+                7 -> {} // onMcuStartComplete();
+                8 -> {} // onResetFactoryStart();
+                9 -> {
+                    // onMsgReceived(message.arg1, (String) message.obj);
+                    // onMsgReceived();
                 }
 
-                7 -> //                    ExtModuleManager.this.onMcuStartComplete();
-                    return
-
-                8 -> //                    ExtModuleManager.this.onResetFactoryStart();
-                    return
-
-                9 -> //                    ExtModuleManager.this.onMsgReceived(message.arg1, (String) message.obj);
-//                    ExtModuleManager.this.onMsgReceived();
-                    return
-
-                10 -> //                    ExtModuleManager.this.onDmrUpdateStateChanged(1);
-                    return
-
-                11 -> //                    ExtModuleManager.this.handleDmrStopped();
-//                    ExtModuleManager.this.onDmrUpdateStateChanged(0);
-                    return
-
-                12 -> //                    ExtModuleManager.this.handleGetDmrTimeout();
-                    return
-
-                13 -> {
-                    handleCallInStateChanged(message.arg1)
-                    return
+                10 -> {} // onDmrUpdateStateChanged(1);
+                11 -> {
+                    // handleDmrStopped();
+                    // onDmrUpdateStateChanged(0);
                 }
 
+                12 -> {} // handleGetDmrTimeout();
+                13 -> handleCallInStateChanged(message.arg1)
                 14 -> {
                     mIsPTTStopComplete = true
-                    return
                 }
 
-                15 -> //                    ExtModuleManager.this.onDmrUpdateFailed();
-                    return
-
-                16 -> //                    ExtModuleManager.this.handleCallInFast();
-                    return
-
+                15 -> {} // onDmrUpdateFailed();
+                16 -> {} // handleCallInFast();
                 17 -> {
                     val str = message.obj as String
                     Log.i("ExtModuleManager", "MSG_GET_INCALL_INFO callInfo:$str")
-                    //                    String[] split = str.split(":");
-//                    ExtModuleManager.this.onGetIncallInfo(Integer.parseInt(split[0]), Integer.parseInt(split[1]), Integer.parseInt(split[2]));
-                    return
+                    // String[] split = str.split(":");
+                    // onGetIncallInfo(Integer.parseInt(split[0]), Integer.parseInt(split[1]), Integer.parseInt(split[2]));
                 }
 
-                18 -> {
-                    openPcmIn()
-                    return
-                }
-
-                19 -> {
-                    closePcmIn()
-                    return
-                }
-
-                20 -> {
-                    openPcmOut()
-                    return
-                }
-
-                21 -> {
-                    closePcmOut()
-                    return
-                }
-
-                22 -> //                    ExtModuleManager.this.onScanChannelsStart();
-                    return
-
-                23 -> //                    ExtModuleManager.this.onScanChannelsComplete();
-                    return
-
-                else -> {}
+                18 -> openPcmIn()
+                19 -> closePcmIn()
+                20 -> openPcmOut()
+                21 -> closePcmOut()
+                22 -> {} // onScanChannelsStart();
+                23 -> {} // onScanChannelsComplete();
             }
         }
     }
@@ -1024,102 +964,50 @@ class ExtModuleManager(context: Context) {
             if (bArr[3].toInt() == 0) {
                 val b = bArr[4]
                 Log.i("ExtModuleManager", "parseCmd sys cmd:" + b.toInt())
-                if (b.toInt() == 1) {
-                    handleRecvFirmwareVersion(bArr)
-                    return
-                }
                 when (b.toInt()) {
-                    4 -> {
-                        handleMcuInitFinished()
-                        return
-                    }
-
-                    5 -> {
-                        // handleMcuUpdateFinished();
-                        return
-                    }
-
-                    6 -> {
-                        handleMcuStartFinished()
-                        return
-                    }
-
-                    7 -> {
-                        handleMcuErrorReport(bArr)
-                        return
-                    }
-
-                    8 -> {
-                        handleMcuStateReport(bArr)
-                        return
-                    }
-
-                    9 -> {
-                        // handleDmrUpdated();
-                        return
-                    }
-
-                    10 -> {
-                        // handleDmrUpdatFailed();
-                        return
-                    }
-
-                    else -> return
+                    1 -> handleRecvFirmwareVersion(bArr)
+                    4 -> handleMcuInitFinished()
+                    5 -> {} // handleMcuUpdateFinished()
+                    6 -> handleMcuStartFinished()
+                    7 -> handleMcuErrorReport(bArr)
+                    8 -> handleMcuStateReport(bArr)
+                    9 -> {} // handleDmrUpdated()
+                    10 -> {} // handleDmrUpdatFailed()
                 }
-            }
-            if (bArr[3].toInt() == 1) {
+            } else if (bArr[3].toInt() == 1) {
                 val b2 = bArr[4]
                 Log.i("ExtModuleManager", "parseCmd module cmd:" + b2.toInt())
-                if (b2.toInt() == 4) {
-                    handleRecvSendStateChange(bArr[8].toInt())
-                } else if (b2.toInt() == 17) {
-//                    getMsgContent(bArr);
-                } else if (b2.toInt() == 37) {
-                    getModuleVersonContent(bArr)
-                } else if (b2.toInt() == 43) {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-//                        getDmr09CallInfo(bArr);
+                when (b2.toInt()) {
+                    4 -> handleRecvSendStateChange(bArr[8].toInt())
+                    17 -> {} // getMsgContent(bArr);
+                    37 -> getModuleVersonContent(bArr)
+                    43 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+                        // getDmr09CallInfo(bArr);
                     }
-                } else if (b2.toInt() == 45) {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-//                        getDmr09MsgContent(bArr);
+
+                    45 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+                        // getDmr09MsgContent(bArr);
                     }
-                } else if (b2.toInt() == 6) {
-                    handleRecvSendStateChange(bArr)
-                } else if (b2.toInt() == 7) {
-//                    handleMsgResponse(bArr[8]);
-                } else if (b2.toInt() == 34) {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+
+                    6 -> handleRecvSendStateChange(bArr)
+                    7 -> {} // handleMsgResponse(bArr[8]);
+                    34 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
                         setChannelComplete(bArr)
                     }
-                } else if (b2.toInt() == 35) {
-                    if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+
+                    35 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
                         setChannelComplete(bArr)
                     }
-                } else {
-                    when (b2.toInt()) {
-                        52 -> {
-                            if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                                getModuleVersonContent(bArr)
-                                return
-                            }
-                            return
-                        }
 
-                        53 -> {
-                            setChannelComplete(bArr)
-                            return
-                        }
+                    52 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+                        getModuleVersonContent(bArr)
+                    }
 
-                        54 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-//                                handleModuleResponse(bArr[8]);
-                            return
-                        } else {
-                            setChannelComplete(bArr)
-                            return
-                        }
-
-                        else -> {}
+                    53 -> setChannelComplete(bArr)
+                    54 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+                        // handleModuleResponse(bArr[8]);
+                    } else {
+                        setChannelComplete(bArr)
                     }
                 }
             } else if (bArr[3].toInt() == 2 && bArr.size > 8) {
