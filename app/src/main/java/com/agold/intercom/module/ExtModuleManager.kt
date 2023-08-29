@@ -844,33 +844,28 @@ class ExtModuleManager(context: Context) {
         Log.i("ExtModuleManager", "stopPlay end-----------------")
     }
 
-    fun startRecord(): Int {
+    fun startRecord() {
         Log.i(
             "ExtModuleManager",
             "startRecord mAudioState:" + mAudioState + ", mIsStopRecord:" + mIsStopRecord + ", mIsLockDigitalSend:" + mIsLockDigitalSend + ", mIsLockAnglogSend:" + mIsLockAnglogSend + ", mIsSetChannelFinished:" + isSetChannelFinished
         )
-        return if (!mIsMCUStarted || !mIsCmdStart) {
+        if (!mIsMCUStarted || !mIsCmdStart) {
             Log.i("ExtModuleManager", "startRecord cmd COM is not open!")
-            0
         } else if (!isSetChannelFinished) {
             Log.i("ExtModuleManager", "startRecord channel is not set finished!")
-            0
         } else if (!mIsStopRecord) {
             Log.i("ExtModuleManager", "startRecord is not stopped!")
-            0
         } else {
             if (mAudioState == 0) {
                 mAudioState = 1
                 if (requestMusicFocus() == 0) {
                     mAudioState = 0
-                    return 0
                 }
                 mHandler.removeMessages(20)
                 val handler2 = mHandler
                 handler2.sendMessage(handler2.obtainMessage(20))
                 onCallStateChanged(1)
             }
-            0
         }
     }
 
