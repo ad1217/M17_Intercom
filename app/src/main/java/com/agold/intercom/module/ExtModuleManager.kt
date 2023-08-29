@@ -509,8 +509,7 @@ class ExtModuleManager(context: Context) {
                                 if (aguiExtModule != null) {
                                     mAguiExtModule!!.readTTyDevice(object :
                                         IAguiExtModuleReadCallback.Stub() {
-                                        // from class: com.agold.intercom.module.ExtModuleManager.20.1
-                                        @Throws(RemoteException::class)  // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
+                                        @Throws(RemoteException::class)
                                         override fun onReadDevice(bArr: ByteArray, i: Int) {
                                             if (i > 0) {
                                                 Log.i(
@@ -626,8 +625,7 @@ class ExtModuleManager(context: Context) {
                                     if (aguiExtModule != null) {
                                         mAguiExtModule!!.readPcmDevice(object :
                                             IAguiExtModuleReadCallback.Stub() {
-                                            // from class: com.agold.intercom.module.ExtModuleManager.22.1
-                                            @Throws(RemoteException::class)  // vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
+                                            @Throws(RemoteException::class)
                                             override fun onReadDevice(bArr: ByteArray, i: Int) {
                                                 if (i > 0) {
                                                     Log.i(
