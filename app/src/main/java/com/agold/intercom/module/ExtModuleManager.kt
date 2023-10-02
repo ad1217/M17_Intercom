@@ -1364,7 +1364,10 @@ class ExtModuleManager(context: Context) {
         )
         if (pttRecordEnable == 1) {
             mAudioRecordPath =
-                File(Environment.getExternalStorageDirectory(), "Download/record/$str.pcm")
+                File(
+                    Companion.mContext!!.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                    "record/$str.pcm"
+                )
         } else {
             mAudioRecordPath = null
         }
