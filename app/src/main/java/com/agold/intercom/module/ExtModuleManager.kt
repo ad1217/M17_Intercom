@@ -14,11 +14,17 @@ import android.os.Looper
 import android.os.Message
 import android.os.PowerManager
 import android.os.RemoteException
-import android.os.SystemClock
 import android.os.SystemProperties
 import android.util.Log
-import com.agold.intercom.data.Channel
 import com.agold.intercom.utils.IComUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModule
 import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
 import java.io.BufferedOutputStream
@@ -34,11 +40,11 @@ import kotlin.concurrent.withLock
 
 class ExtModuleManager(context: Context) {
     private val mAudioManager: AudioManager?
+    private val mScope = CoroutineScope(Dispatchers.Default)
     private val mExtModuleProtocol: ExtModuleProtocol?
     private val mWakeLock: PowerManager.WakeLock
     private val mCmdWriteBuffer = ByteArray(1920)
-    private val mAudioLock = ReentrantLock()
-    private val mAudioCondition = mAudioLock.newCondition()
+    private val mAudioLock = Channel<Unit>(0)
     var mAudioTrack: AudioTrack? = null
     private var AUDIO_FRAME_SIZE = 1920
     private var mAguiExtModule: IAguiExtModule? = null
@@ -210,10 +216,10 @@ class ExtModuleManager(context: Context) {
         mAllExit = false
         mIsStopping = false
         startMcu()
-        createCmdReadThread()
-        createCallInThread()
-        createAudioPlayThread()
-        createAudioRecordThread()
+        mScope.launch { createCmdReadThread() }
+        mScope.launch { createCallInThread() }
+        mScope.launch { createAudioPlayThread() }
+        mScope.launch { createAudioRecordThread() }
         mHandler.removeMessages(1)
         mHandler.sendMessage(mHandler.obtainMessage(1))
         mHandler.removeMessages(2)
@@ -237,6 +243,7 @@ class ExtModuleManager(context: Context) {
     fun exit() {
         Log.i("ExtModuleManager", "exit mAudioState:$mAudioState")
         mAllExit = true
+        mScope.cancel()
         mIsStopRecord = true
         mIsPTTStopComplete = true
         mIsStopPlay = true
@@ -441,10 +448,8 @@ class ExtModuleManager(context: Context) {
     private fun openPcmOut() {
         Log.i("ExtModuleManager", "openPcmOut mIsStopRecord:$mIsStopRecord")
         if (mIsStopRecord) {
-            mAudioLock.withLock {
-                mIsStopRecord = false
-                mAudioCondition.signal()
-            }
+            mIsStopRecord = false
+            mAudioLock.trySend(Unit)
             mIsStopRecord = false
             mStartCallTime = System.currentTimeMillis()
             setAudioRecordPath("" + mStartCallTime)
@@ -491,245 +496,233 @@ class ExtModuleManager(context: Context) {
         }
     }
 
-    private fun createCmdReadThread() {
-        Thread(Runnable {
-            while (!mAllExit) {
+    private suspend fun createCmdReadThread() {
+        withContext(Dispatchers.IO) {
+            while (isActive) {
                 try {
-                    if (mIsMCUStarted) {
-                        if (mIsUpdatingDmr) {
-                            SystemClock.sleep(100L)
-                        } else {
+                    if (!mIsMCUStarted) {
+                        delay(1000L)
+                    } else if (mIsUpdatingDmr) {
+                        delay(100L)
+                    } else {
+                        try {
+                            if (aguiExtModule != null) {
+                                mAguiExtModule!!.readTTyDevice(object :
+                                    IAguiExtModuleReadCallback.Stub() {
+                                    @Throws(RemoteException::class)
+                                    override fun onReadDevice(bArr: ByteArray, i: Int) {
+                                        if (i > 0) {
+                                            Log.i(
+                                                "ExtModuleManager",
+                                                "onReadTTyDevice readSize:$i"
+                                            )
+                                            handleCmdResponse(bArr, i)
+                                        }
+                                    }
+                                })
+                            }
+                        } catch (e: RemoteException) {
+                            Log.e("ExtModuleManager", "createCmdReadThread ex:$e")
+                        }
+                        delay(100L)
+                    }
+                } catch (e2: Exception) { // TODO: more specific catch to avoid catching CancellationException
+                    Log.e("ExtModuleManager", "createCmdReadThread e:$e2")
+                    return@withContext
+                }
+            }
+            Log.i("ExtModuleManager", "createCmdReadThread exit")
+        }
+    }
+
+    private suspend fun createCallInThread() {
+        withContext(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    if (!mIsMCUStarted) {
+                        delay(1000L)
+                    } else if (mIsUpdatingDmr) {
+                        delay(100L)
+                    } else {
+                        try {
+                            if (aguiExtModule != null) {
+                                Log.i(
+                                    "ExtModuleManager",
+                                    "createCallInThread start detectAudioinState"
+                                )
+                                val detectAudioinState = aguiExtModule!!.detectAudioinState()
+                                Log.i(
+                                    "ExtModuleManager",
+                                    "createCallInThread callInState:$detectAudioinState"
+                                )
+                                handleCallInStateChanged(detectAudioinState)
+                            }
+                        } catch (e: RemoteException) {
+                            Log.e("ExtModuleManager", "createCallInThread ex:$e")
+                        }
+                        delay(100L)
+                    }
+                } catch (e2: Exception) {
+                    Log.e("ExtModuleManager", "createCallInThread e:$e2")
+                    return@withContext
+                }
+            }
+            Log.i("ExtModuleManager", "createCallInThread exit")
+        }
+    }
+
+    private suspend fun createAudioPlayThread() {
+        withContext(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    if (mIsStopPlay) {
+                        delay(10L)
+                    } else if (!mIsPcmInStart) {
+                        delay(10L)
+                    } else {
+                        Log.i(
+                            "ExtModuleManager",
+                            "createAudioPlayThread mAudioTrack:$mAudioTrack"
+                        )
+                        if (mAudioTrack == null) {
+                            val minBufferSize = AudioTrack.getMinBufferSize(
+                                mPlayFrequency,
+                                AudioFormat.CHANNEL_OUT_STEREO,
+                                AudioFormat.ENCODING_PCM_16BIT
+                            )
+                            Log.i(
+                                "ExtModuleManager",
+                                "createAudioTrack playBufSize:$minBufferSize"
+                            )
+                            mAudioTrack = AudioTrack.Builder()
+                                .setAudioAttributes(mAudioAttributes)
+                                .setAudioFormat(
+                                    AudioFormat.Builder()
+                                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                        .setSampleRate(mPlayFrequency)
+                                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                                        .build()
+                                )
+                                .setBufferSizeInBytes(minBufferSize)
+                                .setTransferMode(AudioTrack.MODE_STREAM)
+                                .build()
+                        }
+                        Log.i(
+                            "ExtModuleManager",
+                            "createAudioPlayThread mAudioTrack:$mAudioTrack"
+                        )
+                        Log.i(
+                            "ExtModuleManager",
+                            "createAudioPlayThread mAudioTrack getState:" + mAudioTrack!!.state + ", getPlayState:" + mAudioTrack!!.playState
+                        )
+                        mAudioTrack!!.play()
+                        while (mIsPcmInStart && isActive) {
                             try {
                                 if (aguiExtModule != null) {
-                                    mAguiExtModule!!.readTTyDevice(object :
+                                    mAguiExtModule!!.readPcmDevice(object :
                                         IAguiExtModuleReadCallback.Stub() {
                                         @Throws(RemoteException::class)
                                         override fun onReadDevice(bArr: ByteArray, i: Int) {
                                             if (i > 0) {
                                                 Log.i(
                                                     "ExtModuleManager",
-                                                    "onReadTTyDevice readSize:$i"
+                                                    "readPcmDevice readSize:$i"
                                                 )
-                                                handleCmdResponse(bArr, i)
+                                                try {
+                                                    mAudioTrack?.write(bArr, 0, i)
+                                                    mPcmRecordBOS?.write(bArr, 0, i)
+                                                } catch (e: Exception) {
+                                                    Log.e(
+                                                        "ExtModuleManager",
+                                                        "onReadDevice e:$e"
+                                                    )
+                                                }
                                             }
                                         }
                                     })
                                 }
-                            } catch (e: Exception) {
-                                Log.e("ExtModuleManager", "createCmdReadThread ex:$e")
-                            }
-                            SystemClock.sleep(100L)
-                        }
-                    } else {
-                        SystemClock.sleep(1000L)
-                    }
-                } catch (e2: Exception) {
-                    Log.e("ExtModuleManager", "createCmdReadThread e:$e2")
-                    return@Runnable
-                }
-            }
-            Log.i("ExtModuleManager", "createCmdReadThread exit")
-        }).start()
-    }
-
-    private fun createCallInThread() {
-        Thread(Runnable {
-            while (!mAllExit) {
-                try {
-                    if (mIsMCUStarted) {
-                        if (mIsUpdatingDmr) {
-                            SystemClock.sleep(100L)
-                        } else {
-                            try {
-                                if (aguiExtModule != null) {
-                                    Log.i(
-                                        "ExtModuleManager",
-                                        "createCallInThread start detectAudioinState"
-                                    )
-                                    val detectAudioinState = aguiExtModule!!.detectAudioinState()
-                                    Log.i(
-                                        "ExtModuleManager",
-                                        "createCallInThread callInState:$detectAudioinState"
-                                    )
-                                    handleCallInStateChanged(detectAudioinState)
-                                }
-                            } catch (e: Exception) {
-                                Log.e("ExtModuleManager", "createCallInThread ex:$e")
-                            }
-                            SystemClock.sleep(100L)
-                        }
-                    } else {
-                        SystemClock.sleep(1000L)
-                    }
-                } catch (e2: Exception) {
-                    Log.e("ExtModuleManager", "createCallInThread e:$e2")
-                    return@Runnable
-                }
-            }
-            Log.i("ExtModuleManager", "createCallInThread exit")
-        }).start()
-    }
-
-    private fun createAudioPlayThread() {
-        Thread(Runnable {
-            while (!mAllExit) {
-                try {
-                    if (!mIsStopPlay) {
-                        if (!mIsPcmInStart) {
-                            SystemClock.sleep(10L)
-                        } else {
-                            Log.i(
-                                "ExtModuleManager",
-                                "createAudioPlayThread mAudioTrack:$mAudioTrack"
-                            )
-                            if (mAudioTrack == null) {
-                                val minBufferSize = AudioTrack.getMinBufferSize(
-                                    mPlayFrequency,
-                                    AudioFormat.CHANNEL_OUT_STEREO,
-                                    AudioFormat.ENCODING_PCM_16BIT
-                                )
-                                Log.i(
+                            } catch (e: RemoteException) {
+                                Log.e("ExtModuleManager", "createAudioPlayThread ex:$e")
+                                Log.e(
                                     "ExtModuleManager",
-                                    "createAudioTrack playBufSize:$minBufferSize"
+                                    "createAudioPlayThread mAguiExtModule:" + mAguiExtModule
                                 )
-                                mAudioTrack = AudioTrack.Builder()
-                                    .setAudioAttributes(mAudioAttributes)
-                                    .setAudioFormat(
-                                        AudioFormat.Builder()
-                                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                                            .setSampleRate(mPlayFrequency)
-                                            .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                                            .build()
-                                    )
-                                    .setBufferSizeInBytes(minBufferSize)
-                                    .setTransferMode(AudioTrack.MODE_STREAM)
-                                    .build()
+                                Log.e(
+                                    "ExtModuleManager",
+                                    "createAudioPlayThread IAguiExtModule.getService():" + IAguiExtModule.getService()
+                                )
+                                mAguiExtModule = null
                             }
-                            Log.i(
-                                "ExtModuleManager",
-                                "createAudioPlayThread mAudioTrack:$mAudioTrack"
-                            )
-                            Log.i(
-                                "ExtModuleManager",
-                                "createAudioPlayThread mAudioTrack getState:" + mAudioTrack!!.state + ", getPlayState:" + mAudioTrack!!.playState
-                            )
-                            mAudioTrack!!.play()
-                            while (mIsPcmInStart) {
-                                try {
-                                    if (aguiExtModule != null) {
-                                        mAguiExtModule!!.readPcmDevice(object :
-                                            IAguiExtModuleReadCallback.Stub() {
-                                            @Throws(RemoteException::class)
-                                            override fun onReadDevice(bArr: ByteArray, i: Int) {
-                                                if (i > 0) {
-                                                    Log.i(
-                                                        "ExtModuleManager",
-                                                        "readPcmDevice readSize:$i"
-                                                    )
-                                                    try {
-                                                        if (mAudioTrack != null) {
-                                                            mAudioTrack!!.write(bArr, 0, i)
-                                                        }
-                                                        if (mPcmRecordBOS != null) {
-                                                            mPcmRecordBOS!!.write(bArr, 0, i)
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        Log.e(
-                                                            "ExtModuleManager",
-                                                            "onReadDevice e:$e"
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        })
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("ExtModuleManager", "createAudioPlayThread ex:$e")
-                                    Log.e(
-                                        "ExtModuleManager",
-                                        "createAudioPlayThread mAguiExtModule:" + mAguiExtModule
-                                    )
-                                    Log.e(
-                                        "ExtModuleManager",
-                                        "createAudioPlayThread IAguiExtModule.getService():" + IAguiExtModule.getService()
-                                    )
-                                    mAguiExtModule = null
-                                }
-                            }
-                            mAudioTrack!!.stop()
-                            mAudioTrack = null
                         }
-                    } else {
-                        SystemClock.sleep(10L)
+                        mAudioTrack!!.stop()
+                        mAudioTrack = null
                     }
                 } catch (e2: Exception) {
                     Log.e("ExtModuleManager", "createAudioPlayThread e:$e2")
-                    return@Runnable
+                    return@withContext
                 }
             }
             Log.i("ExtModuleManager", "createAudioPlayThread exit")
-        }).start()
+        }
     }
 
-    private fun createAudioRecordThread() {
-        Thread {
+    private suspend fun createAudioRecordThread() {
+        withContext(Dispatchers.IO) {
             var read: Int
-            mAudioLock.withLock {
-                while (!mAllExit) {
-                    try {
-                        if (mIsStopRecord) {
-                            Log.i("ExtModuleManager", "createAudioRecordThread mAudioLock.wait!")
-                            mAudioCondition.await()
-                        }
-                        if (!mIsPcmOutStart) {
-                            SystemClock.sleep(10L)
-                        } else {
-                            val bArr = ByteArray(1920)
-                            Log.i(
-                                "ExtModuleManager",
-                                "createAudioRecordThread mAudioRecordPath:$mAudioRecordPath"
-                            )
-                            val audioRecordPathParent = mAudioRecordPath!!.parentFile
-                            if (audioRecordPathParent != null && !audioRecordPathParent.exists()) {
-                                audioRecordPathParent.mkdirs()
-                            }
-                            var bufferedOutputStream: BufferedOutputStream? = null
-                            if (mAudioRecordPath != null) {
-                                if (mAudioRecordPath!!.exists()) {
-                                    mAudioRecordPath!!.delete()
-                                }
-                                mAudioRecordPath!!.createNewFile()
-                                bufferedOutputStream = BufferedOutputStream(
-                                    Files.newOutputStream(
-                                        mAudioRecordPath!!.toPath()
-                                    )
-                                )
-                            }
-                            val audioRecord = AudioRecord(
-                                1, mRecFrequency, 12, 2, AudioRecord.getMinBufferSize(
-                                    mRecFrequency, 12, 2
-                                )
-                            )
-                            audioRecord.startRecording()
-                            while (mIsPcmOutStart) {
-                                read = audioRecord.read(bArr, 0, AUDIO_FRAME_SIZE)
-                                if (read < 0) {
-                                    break
-                                }
-                                aguiExtModule?.writePcmDevice(bArr, read)
-                                bufferedOutputStream?.write(bArr, 0, read)
-                            }
-                            bufferedOutputStream?.close()
-                            audioRecord.stop()
-                            audioRecord.release()
-                        }
-                    } catch (e: Exception) {
-                        Log.i("ExtModuleManager", "createAudioRecordThread error:$e")
+            while (isActive) {
+                try {
+                    if (mIsStopRecord) {
+                        Log.i("ExtModuleManager", "createAudioRecordThread mAudioLock.receive!")
+                        mAudioLock.receive()
                     }
+                    if (!mIsPcmOutStart) {
+                        delay(10L)
+                    } else {
+                        val bArr = ByteArray(1920)
+                        Log.i(
+                            "ExtModuleManager",
+                            "createAudioRecordThread mAudioRecordPath:$mAudioRecordPath"
+                        )
+                        val audioRecordPathParent = mAudioRecordPath!!.parentFile
+                        if (audioRecordPathParent != null && !audioRecordPathParent.exists()) {
+                            audioRecordPathParent.mkdirs()
+                        }
+                        var bufferedOutputStream: BufferedOutputStream? = null
+                        if (mAudioRecordPath != null) {
+                            if (mAudioRecordPath!!.exists()) {
+                                mAudioRecordPath!!.delete()
+                            }
+                            mAudioRecordPath!!.createNewFile()
+                            bufferedOutputStream = BufferedOutputStream(
+                                Files.newOutputStream(
+                                    mAudioRecordPath!!.toPath()
+                                )
+                            )
+                        }
+                        val audioRecord = AudioRecord(
+                            1, mRecFrequency, 12, 2, AudioRecord.getMinBufferSize(
+                                mRecFrequency, 12, 2
+                            )
+                        )
+                        audioRecord.startRecording()
+                        while (mIsPcmOutStart) {
+                            read = audioRecord.read(bArr, 0, AUDIO_FRAME_SIZE)
+                            if (read < 0) {
+                                break
+                            }
+                            aguiExtModule?.writePcmDevice(bArr, read)
+                            bufferedOutputStream?.write(bArr, 0, read)
+                        }
+                        bufferedOutputStream?.close()
+                        audioRecord.stop()
+                        audioRecord.release()
+                    }
+                } catch (e: Exception) {
+                    Log.i("ExtModuleManager", "createAudioRecordThread error:$e")
                 }
             }
             Log.i("ExtModuleManager", "createAudioRecordThread exit")
-        }.start()
+        }
     }
 
     fun startPlay(): Int {
@@ -777,8 +770,8 @@ class ExtModuleManager(context: Context) {
             if (mAudioRecordPath == null) {
                 return 0
             }
-            val pcmFile = mAudioRecordPath
-            if (pcmFile!!.exists()) {
+            val pcmFile: File = mAudioRecordPath!!
+            if (pcmFile.exists()) {
                 pcmFile.delete()
             }
             // TODO: better error handling
@@ -1262,7 +1255,7 @@ class ExtModuleManager(context: Context) {
         }
     }
 
-    fun setChannel(channel: Channel?) {
+    fun setChannel(channel: com.agold.intercom.data.Channel?) {
         Log.i(
             "ExtModuleManager",
             "setChannel mIsCmdStart:" + mIsCmdStart + ", mIsStopPlay:" + mIsStopPlay + ", mIsStopRecord:" + mIsStopRecord + ", mIsUsbStarted:" + mIsUsbStarted + ", mIsPTTStopComplete:" + mIsPTTStopComplete + ", channel:" + channel

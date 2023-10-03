@@ -47,6 +47,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1")
     implementation("androidx.navigation:navigation-fragment-ktx:2.6.0")
     implementation("androidx.navigation:navigation-ui-ktx:2.6.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     compileOnly(files("system_libs/android.hidl.base-V1.0-java-dex2jar.jar"))
     compileOnly(files("system_libs/framework-dex2jar.jar"))
     testImplementation("junit:junit:4.13.2")
