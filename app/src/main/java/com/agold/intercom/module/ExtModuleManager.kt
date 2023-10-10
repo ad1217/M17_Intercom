@@ -38,6 +38,8 @@ import java.nio.file.Files
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+private const val TAG = "ExtModuleManager"
+
 class ExtModuleManager(context: Context) {
     private val mAudioManager: AudioManager?
     private val mScope = CoroutineScope(Dispatchers.Default)
@@ -126,7 +128,7 @@ class ExtModuleManager(context: Context) {
                 16 -> {} // handleCallInFast();
                 17 -> {
                     val str = message.obj as String
-                    Log.i("ExtModuleManager", "MSG_GET_INCALL_INFO callInfo:$str")
+                    Log.i(TAG, "MSG_GET_INCALL_INFO callInfo:$str")
                     // String[] split = str.split(":");
                     // onGetIncallInfo(Integer.parseInt(split[0]), Integer.parseInt(split[1]), Integer.parseInt(split[2]));
                 }
@@ -144,7 +146,7 @@ class ExtModuleManager(context: Context) {
     private var mCallInStateChangedCount = 0
 
     init {
-        Log.i("ExtModuleManager", "ExtModuleManager constuct")
+        Log.i(TAG, "ExtModuleManager constuct")
         val extModuleProtocol = ExtModuleProtocol()
         mExtModuleProtocol = extModuleProtocol
         extModuleProtocol.setExtModuleManager(this)
@@ -159,21 +161,21 @@ class ExtModuleManager(context: Context) {
     }
 
     private fun onCallStateChanged(i: Int) {
-        Log.i("ExtModuleManager", "onCallStateChanged currState:$i")
+        Log.i(TAG, "onCallStateChanged currState:$i")
         val intent = Intent("agui.intercom.intent.action.CALL_STATE_CHANGED")
         intent.putExtra("callstate", i)
         mContext!!.sendBroadcast(intent)
     }
 
     private fun onPlayStateChanged(i: Int) {
-        Log.i("ExtModuleManager", "onPlayStateChanged currState:$i")
+        Log.i(TAG, "onPlayStateChanged currState:$i")
         val intent = Intent("agui.intercom.intent.action.PLAY_STATE_CHANGED")
         intent.putExtra("playstate", i)
         mContext!!.sendBroadcast(intent)
     }
 
     private fun onSetChannelTimeout() {
-        Log.i("ExtModuleManager", "onSetChannelTimeout mIsCmdStart:$mIsCmdStart")
+        Log.i(TAG, "onSetChannelTimeout mIsCmdStart:$mIsCmdStart")
         if (mIsCmdStart) {
             resetMcu()
         }
@@ -188,10 +190,10 @@ class ExtModuleManager(context: Context) {
                 try {
                     mAguiExtModule = IAguiExtModule.getService()
                 } catch (e: RemoteException) {
-                    Log.e("ExtModuleManager", "Failed to get interface", e)
+                    Log.e(TAG, "Failed to get interface", e)
                 }
                 if (mAguiExtModule == null) {
-                    Log.w("ExtModuleManager", "AguiDevice HIDL not available")
+                    Log.w(TAG, "AguiDevice HIDL not available")
                     return null
                 }
             }
@@ -210,7 +212,7 @@ class ExtModuleManager(context: Context) {
 
     fun start() {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "start mAllExit:$mAllExit, mIsCmdStart:$mIsCmdStart, mIsMCUStarted:$mIsMCUStarted"
         )
         mAllExit = false
@@ -227,21 +229,21 @@ class ExtModuleManager(context: Context) {
     }
 
     fun stop() {
-        Log.i("ExtModuleManager", "stop-------")
+        Log.i(TAG, "stop-------")
         stopCom()
         mIsStopping = true
         mHandler.postDelayed({
             exit()
             if (mContext != null) {
 //                    ExtModuleManager.mContext.stopService(new Intent(ExtModuleManager.mContext, IComService.class));
-                Log.i("ExtModuleManager", "stopService----------")
+                Log.i(TAG, "stopService----------")
             }
             mIsStopping = true
         }, 300L)
     }
 
     fun exit() {
-        Log.i("ExtModuleManager", "exit mAudioState:$mAudioState")
+        Log.i(TAG, "exit mAudioState:$mAudioState")
         mAllExit = true
         mScope.cancel()
         mIsStopRecord = true
@@ -265,13 +267,13 @@ class ExtModuleManager(context: Context) {
                 mAguiExtModule!!.writeTTyDevice(mCmdWriteBuffer, bArr.size)
             }
         } catch (e: Exception) {
-            Log.e("ExtModuleManager", "sendBytes ex:$e")
+            Log.e(TAG, "sendBytes ex:$e")
         }
     }
 
     fun startMcu() {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "startMcu mIsMCUStarted:$mIsMCUStarted, mIsCmdStart:$mIsCmdStart, mAllExit:$mAllExit, mIsStopping:$mIsStopping"
         )
         if (mAllExit || mIsStopping) {
@@ -290,40 +292,40 @@ class ExtModuleManager(context: Context) {
                     }
                     mHandler.postDelayed({ handleMcuStartFinished() }, 2000L)
                 } catch (e: Exception) {
-                    Log.e("ExtModuleManager", "startMcu ex:$e")
+                    Log.e(TAG, "startMcu ex:$e")
                 }
             } catch (e2: Exception) {
-                Log.e("ExtModuleManager", "startMcu e:$e2")
+                Log.e(TAG, "startMcu e:$e2")
             }
         }).start()
     }
 
     fun stopMcu() {
-        Log.i("ExtModuleManager", "stopMcu")
+        Log.i(TAG, "stopMcu")
         Thread {
             try {
-                Log.i("ExtModuleManager", "stopMcu mAguiExtModule:$mAguiExtModule")
+                Log.i(TAG, "stopMcu mAguiExtModule:$mAguiExtModule")
                 if (aguiExtModule != null) {
-                    Log.i("ExtModuleManager", "mAguiExtModule stopMcu")
+                    Log.i(TAG, "mAguiExtModule stopMcu")
                     mIsMCUStarted = false
                     mIsCmdStart = false
                     mAguiExtModule!!.stopMcu()
                 }
             } catch (e: Exception) {
-                Log.e("ExtModuleManager", "stopMcu e:$e")
+                Log.e(TAG, "stopMcu e:$e")
             }
         }.start()
         isSetChannelFinished = false
     }
 
     fun resetMcu() {
-        Log.i("ExtModuleManager", "resetMcu")
+        Log.i(TAG, "resetMcu")
         stopCom()
         mHandler.postDelayed({ startMcu() }, 4000L)
     }
 
     fun startCom() {
-        Log.i("ExtModuleManager", "startCom mIsCmdStart:$mIsCmdStart")
+        Log.i(TAG, "startCom mIsCmdStart:$mIsCmdStart")
         if (mIsCmdStart) {
             return
         }
@@ -332,7 +334,7 @@ class ExtModuleManager(context: Context) {
 
     fun stopCom() {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "stopCom mIsCmdStart:$mIsCmdStart, mIsStopRecord:$mIsStopRecord, mIsStopPlay:$mIsStopPlay, mAudioState:$mAudioState"
         )
         if (!mIsStopPlay) {
@@ -345,10 +347,7 @@ class ExtModuleManager(context: Context) {
     }
 
     private fun handleMcuStartFinished() {
-        Log.i(
-            "ExtModuleManager",
-            "handleMcuStartFinished mIsSetChannelFinished:$isSetChannelFinished"
-        )
+        Log.i(TAG, "handleMcuStartFinished mIsSetChannelFinished:$isSetChannelFinished")
         mIsUsbStarted = true
         isSetChannelFinished = false
         mHandler.removeMessages(7)
@@ -364,7 +363,7 @@ class ExtModuleManager(context: Context) {
     private val mcuFirmwareVersion: Unit
         get() {
             Log.i(
-                "ExtModuleManager",
+                TAG,
                 "getMcuFirmwareVersion mCurrFirmware:$mCurrFirmware, mIsCmdStart:$mIsCmdStart"
             )
             if (mIsCmdStart) {
@@ -389,7 +388,7 @@ class ExtModuleManager(context: Context) {
         }
 
     private fun handleRecvFirmwareVersion(bArr: ByteArray) {
-        Log.i("ExtModuleManager", "handleRecvFirmwareVersion mCurrFirmware:$mCurrFirmware")
+        Log.i(TAG, "handleRecvFirmwareVersion mCurrFirmware:$mCurrFirmware")
         if ((mCurrFirmware.isNullOrEmpty()) && bArr.size > 8) {
             var bytesToInt2 = IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7]))
             if (bytesToInt2 < 0) {
@@ -399,10 +398,7 @@ class ExtModuleManager(context: Context) {
                 val bArr2 = ByteArray(bytesToInt2)
                 System.arraycopy(bArr, 8, bArr2, 0, bytesToInt2)
                 mCurrFirmware = bArr2.toString(Charsets.UTF_8)
-                Log.i(
-                    "ExtModuleManager",
-                    "handleRecvFirmwareVersion mCurrFirmware:$mCurrFirmware"
-                )
+                Log.i(TAG, "handleRecvFirmwareVersion mCurrFirmware:$mCurrFirmware")
                 if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
                     mExtModuleProtocol!!.getDmr09ModuleSoftVersion()
                 } else {
@@ -420,13 +416,13 @@ class ExtModuleManager(context: Context) {
             try {
                 if (aguiExtModule != null) {
                     val openPcmIn = mAguiExtModule!!.openPcmIn()
-                    Log.i("ExtModuleManager", "openPcmIn ret:$openPcmIn")
+                    Log.i(TAG, "openPcmIn ret:$openPcmIn")
                     if (openPcmIn == 1) {
                         mIsPcmInStart = true
                     }
                 }
             } catch (e: Exception) {
-                Log.e("ExtModuleManager", "openPcmIn e:$e")
+                Log.e(TAG, "openPcmIn e:$e")
             }
         }.start()
     }
@@ -436,17 +432,17 @@ class ExtModuleManager(context: Context) {
             try {
                 if (aguiExtModule != null) {
                     val closePcmIn = mAguiExtModule!!.closePcmIn()
-                    Log.i("ExtModuleManager", "closePcmIn ret:$closePcmIn")
+                    Log.i(TAG, "closePcmIn ret:$closePcmIn")
                     mIsPcmInStart = false
                 }
             } catch (e: Exception) {
-                Log.e("ExtModuleManager", "closePcmIn e:$e")
+                Log.e(TAG, "closePcmIn e:$e")
             }
         }.start()
     }
 
     private fun openPcmOut() {
-        Log.i("ExtModuleManager", "openPcmOut mIsStopRecord:$mIsStopRecord")
+        Log.i(TAG, "openPcmOut mIsStopRecord:$mIsStopRecord")
         if (mIsStopRecord) {
             mIsStopRecord = false
             mAudioLock.trySend(Unit)
@@ -458,20 +454,20 @@ class ExtModuleManager(context: Context) {
                     if (aguiExtModule != null) {
                         mAguiExtModule!!.startPtt()
                         val openPcmOut = mAguiExtModule!!.openPcmOut()
-                        Log.i("ExtModuleManager", "openPcmOut ret:$openPcmOut")
+                        Log.i(TAG, "openPcmOut ret:$openPcmOut")
                         if (openPcmOut == 1) {
                             mIsPcmOutStart = true
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e("ExtModuleManager", "openPcmOut e:$e")
+                    Log.e(TAG, "openPcmOut e:$e")
                 }
             }.start()
         }
     }
 
     private fun closePcmOut() {
-        Log.i("ExtModuleManager", "closePcmOut mIsStopRecord:" + mIsStopRecord)
+        Log.i(TAG, "closePcmOut mIsStopRecord:" + mIsStopRecord)
         if (mIsStopRecord) {
             return
         }
@@ -479,11 +475,11 @@ class ExtModuleManager(context: Context) {
             try {
                 if (aguiExtModule != null) {
                     val closePcmOut = mAguiExtModule!!.closePcmOut()
-                    Log.i("ExtModuleManager", "closePcmOut ret:$closePcmOut")
+                    Log.i(TAG, "closePcmOut ret:$closePcmOut")
                     mAguiExtModule!!.stopPtt()
                 }
             } catch (e: Exception) {
-                Log.e("ExtModuleManager", "closePcmOut e:$e")
+                Log.e(TAG, "closePcmOut e:$e")
             }
         }.start()
         onCallStateChanged(0)
@@ -512,26 +508,23 @@ class ExtModuleManager(context: Context) {
                                     @Throws(RemoteException::class)
                                     override fun onReadDevice(bArr: ByteArray, i: Int) {
                                         if (i > 0) {
-                                            Log.i(
-                                                "ExtModuleManager",
-                                                "onReadTTyDevice readSize:$i"
-                                            )
+                                            Log.i(TAG, "onReadTTyDevice readSize:$i")
                                             handleCmdResponse(bArr, i)
                                         }
                                     }
                                 })
                             }
                         } catch (e: RemoteException) {
-                            Log.e("ExtModuleManager", "createCmdReadThread ex:$e")
+                            Log.e(TAG, "createCmdReadThread ex:$e")
                         }
                         delay(100L)
                     }
                 } catch (e2: Exception) { // TODO: more specific catch to avoid catching CancellationException
-                    Log.e("ExtModuleManager", "createCmdReadThread e:$e2")
+                    Log.e(TAG, "createCmdReadThread e:$e2")
                     return@withContext
                 }
             }
-            Log.i("ExtModuleManager", "createCmdReadThread exit")
+            Log.i(TAG, "createCmdReadThread exit")
         }
     }
 
@@ -546,28 +539,22 @@ class ExtModuleManager(context: Context) {
                     } else {
                         try {
                             if (aguiExtModule != null) {
-                                Log.i(
-                                    "ExtModuleManager",
-                                    "createCallInThread start detectAudioinState"
-                                )
+                                Log.i(TAG, "createCallInThread start detectAudioinState")
                                 val detectAudioinState = aguiExtModule!!.detectAudioinState()
-                                Log.i(
-                                    "ExtModuleManager",
-                                    "createCallInThread callInState:$detectAudioinState"
-                                )
+                                Log.i(TAG, "createCallInThread callInState:$detectAudioinState")
                                 handleCallInStateChanged(detectAudioinState)
                             }
                         } catch (e: RemoteException) {
-                            Log.e("ExtModuleManager", "createCallInThread ex:$e")
+                            Log.e(TAG, "createCallInThread ex:$e")
                         }
                         delay(100L)
                     }
                 } catch (e2: Exception) {
-                    Log.e("ExtModuleManager", "createCallInThread e:$e2")
+                    Log.e(TAG, "createCallInThread e:$e2")
                     return@withContext
                 }
             }
-            Log.i("ExtModuleManager", "createCallInThread exit")
+            Log.i(TAG, "createCallInThread exit")
         }
     }
 
@@ -580,20 +567,14 @@ class ExtModuleManager(context: Context) {
                     } else if (!mIsPcmInStart) {
                         delay(10L)
                     } else {
-                        Log.i(
-                            "ExtModuleManager",
-                            "createAudioPlayThread mAudioTrack:$mAudioTrack"
-                        )
+                        Log.i(TAG, "createAudioPlayThread mAudioTrack:$mAudioTrack")
                         if (mAudioTrack == null) {
                             val minBufferSize = AudioTrack.getMinBufferSize(
                                 mPlayFrequency,
                                 AudioFormat.CHANNEL_OUT_STEREO,
                                 AudioFormat.ENCODING_PCM_16BIT
                             )
-                            Log.i(
-                                "ExtModuleManager",
-                                "createAudioTrack playBufSize:$minBufferSize"
-                            )
+                            Log.i(TAG, "createAudioTrack playBufSize:$minBufferSize")
                             mAudioTrack = AudioTrack.Builder()
                                 .setAudioAttributes(mAudioAttributes)
                                 .setAudioFormat(
@@ -607,12 +588,9 @@ class ExtModuleManager(context: Context) {
                                 .setTransferMode(AudioTrack.MODE_STREAM)
                                 .build()
                         }
+                        Log.i(TAG, "createAudioPlayThread mAudioTrack:$mAudioTrack")
                         Log.i(
-                            "ExtModuleManager",
-                            "createAudioPlayThread mAudioTrack:$mAudioTrack"
-                        )
-                        Log.i(
-                            "ExtModuleManager",
+                            TAG,
                             "createAudioPlayThread mAudioTrack getState:" + mAudioTrack!!.state + ", getPlayState:" + mAudioTrack!!.playState
                         )
                         mAudioTrack!!.play()
@@ -624,31 +602,22 @@ class ExtModuleManager(context: Context) {
                                         @Throws(RemoteException::class)
                                         override fun onReadDevice(bArr: ByteArray, i: Int) {
                                             if (i > 0) {
-                                                Log.i(
-                                                    "ExtModuleManager",
-                                                    "readPcmDevice readSize:$i"
-                                                )
+                                                Log.i(TAG, "readPcmDevice readSize:$i")
                                                 try {
                                                     mAudioTrack?.write(bArr, 0, i)
                                                     mPcmRecordBOS?.write(bArr, 0, i)
                                                 } catch (e: Exception) {
-                                                    Log.e(
-                                                        "ExtModuleManager",
-                                                        "onReadDevice e:$e"
-                                                    )
+                                                    Log.e(TAG, "onReadDevice e:$e")
                                                 }
                                             }
                                         }
                                     })
                                 }
                             } catch (e: RemoteException) {
-                                Log.e("ExtModuleManager", "createAudioPlayThread ex:$e")
+                                Log.e(TAG, "createAudioPlayThread ex:$e")
+                                Log.e(TAG, "createAudioPlayThread mAguiExtModule:" + mAguiExtModule)
                                 Log.e(
-                                    "ExtModuleManager",
-                                    "createAudioPlayThread mAguiExtModule:" + mAguiExtModule
-                                )
-                                Log.e(
-                                    "ExtModuleManager",
+                                    TAG,
                                     "createAudioPlayThread IAguiExtModule.getService():" + IAguiExtModule.getService()
                                 )
                                 mAguiExtModule = null
@@ -658,11 +627,11 @@ class ExtModuleManager(context: Context) {
                         mAudioTrack = null
                     }
                 } catch (e2: Exception) {
-                    Log.e("ExtModuleManager", "createAudioPlayThread e:$e2")
+                    Log.e(TAG, "createAudioPlayThread e:$e2")
                     return@withContext
                 }
             }
-            Log.i("ExtModuleManager", "createAudioPlayThread exit")
+            Log.i(TAG, "createAudioPlayThread exit")
         }
     }
 
@@ -672,7 +641,7 @@ class ExtModuleManager(context: Context) {
             while (isActive) {
                 try {
                     if (mIsStopRecord) {
-                        Log.i("ExtModuleManager", "createAudioRecordThread mAudioLock.receive!")
+                        Log.i(TAG, "createAudioRecordThread mAudioLock.receive!")
                         mAudioLock.receive()
                     }
                     if (!mIsPcmOutStart) {
@@ -680,7 +649,7 @@ class ExtModuleManager(context: Context) {
                     } else {
                         val bArr = ByteArray(1920)
                         Log.i(
-                            "ExtModuleManager",
+                            TAG,
                             "createAudioRecordThread mAudioRecordPath:$mAudioRecordPath"
                         )
                         val audioRecordPathParent = mAudioRecordPath!!.parentFile
@@ -718,23 +687,23 @@ class ExtModuleManager(context: Context) {
                         audioRecord.release()
                     }
                 } catch (e: Exception) {
-                    Log.i("ExtModuleManager", "createAudioRecordThread error:$e")
+                    Log.i(TAG, "createAudioRecordThread error:$e")
                 }
             }
-            Log.i("ExtModuleManager", "createAudioRecordThread exit")
+            Log.i(TAG, "createAudioRecordThread exit")
         }
     }
 
     fun startPlay(): Int {
-        Log.i("ExtModuleManager", "startPlay start mIsStopPlay:" + mIsStopPlay)
+        Log.i(TAG, "startPlay start mIsStopPlay:" + mIsStopPlay)
         return if (!mIsStopPlay) {
-            Log.i("ExtModuleManager", "startPlay--->play is not stopped")
+            Log.i(TAG, "startPlay--->play is not stopped")
             0
         } else if (!mIsMCUStarted || !mIsCmdStart) {
-            Log.i("ExtModuleManager", "startPlay--->cmd COM is not open!")
+            Log.i(TAG, "startPlay--->cmd COM is not open!")
             0
         } else if (!mIsStopRecord) {
-            Log.i("ExtModuleManager", "startPlay Record is not stop!")
+            Log.i(TAG, "startPlay Record is not stop!")
             0
         } else {
 //            Channel currChannel = getCurrChannel();
@@ -765,7 +734,7 @@ class ExtModuleManager(context: Context) {
                     audioRecordPathParent.mkdirs()
                 }
             } catch (e: Exception) {
-                Log.e("ExtModuleManager", "startPlay ex:$e")
+                Log.e(TAG, "startPlay ex:$e")
             }
             if (mAudioRecordPath == null) {
                 return 0
@@ -785,15 +754,15 @@ class ExtModuleManager(context: Context) {
             } catch (e: FileNotFoundException) {
                 throw RuntimeException(e)
             }
-            Log.i("ExtModuleManager", "startPlay end-----------------")
+            Log.i(TAG, "startPlay end-----------------")
             0
         }
     }
 
     fun stopPlay() {
-        Log.i("ExtModuleManager", "stopPlay mIsStopPlay:" + mIsStopPlay)
+        Log.i(TAG, "stopPlay mIsStopPlay:" + mIsStopPlay)
         if (mIsStopPlay) {
-            Log.i("ExtModuleManager", "stopPlay---> play is not started")
+            Log.i(TAG, "stopPlay---> play is not started")
             return
         }
         mIsStopPlay = true
@@ -806,12 +775,12 @@ class ExtModuleManager(context: Context) {
                 mPcmRecordBOS = null
             }
         } catch (e: Exception) {
-            Log.e("ExtModuleManager", "stopPlay ex:$e")
+            Log.e(TAG, "stopPlay ex:$e")
         }
         //        int currChannel = this.mIComPreference.getCurrChannel(1);
 //        int currArea = this.mIComPreference.getCurrArea(1);
 //        long currentTimeMillis = System.currentTimeMillis() - this.mStartPlayTime;
-//        Log.i("ExtModuleManager", "stopPlay channelId:" + currChannel + ", channelArea:" + currArea + ", recordPath:" + this.mAudioRecordPath + ", duration:" + currentTimeMillis + ", mStartPlayTime:" + this.mStartPlayTime + ", mIsSettingFactory:" + this.mIsSettingFactory);
+//        Log.i(TAG, "stopPlay channelId:" + currChannel + ", channelArea:" + currArea + ", recordPath:" + this.mAudioRecordPath + ", duration:" + currentTimeMillis + ", mStartPlayTime:" + this.mStartPlayTime + ", mIsSettingFactory:" + this.mIsSettingFactory);
 //        if (this.mAudioRecordPath != null && !this.mIsSettingFactory) {
 //            if (currentTimeMillis < 1500) {
 //                deleteRecordFile(this.mAudioRecordPath);
@@ -834,20 +803,20 @@ class ExtModuleManager(context: Context) {
                 mHasNewMessage = false
             }
         }, 500L)
-        Log.i("ExtModuleManager", "stopPlay end-----------------")
+        Log.i(TAG, "stopPlay end-----------------")
     }
 
     fun startRecord() {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "startRecord mAudioState:" + mAudioState + ", mIsStopRecord:" + mIsStopRecord + ", mIsLockDigitalSend:" + mIsLockDigitalSend + ", mIsLockAnglogSend:" + mIsLockAnglogSend + ", mIsSetChannelFinished:" + isSetChannelFinished
         )
         if (!mIsMCUStarted || !mIsCmdStart) {
-            Log.i("ExtModuleManager", "startRecord cmd COM is not open!")
+            Log.i(TAG, "startRecord cmd COM is not open!")
         } else if (!isSetChannelFinished) {
-            Log.i("ExtModuleManager", "startRecord channel is not set finished!")
+            Log.i(TAG, "startRecord channel is not set finished!")
         } else if (!mIsStopRecord) {
-            Log.i("ExtModuleManager", "startRecord is not stopped!")
+            Log.i(TAG, "startRecord is not stopped!")
         } else {
             if (mAudioState == 0) {
                 mAudioState = 1
@@ -863,10 +832,7 @@ class ExtModuleManager(context: Context) {
     }
 
     private fun requestMusicFocus(): Int {
-        Log.i(
-            "ExtModuleManager",
-            "requestMusicFocus mCurrentAudioFocusRequest:" + mCurrentAudioFocusRequest
-        )
+        Log.i(TAG, "requestMusicFocus mCurrentAudioFocusRequest:" + mCurrentAudioFocusRequest)
         if (mCurrentAudioFocusRequest != null) {
             return 1
         }
@@ -876,7 +842,7 @@ class ExtModuleManager(context: Context) {
                     .setAudioAttributes(mAudioAttributes)
                     .build()
             val requestAudioFocus = mAudioManager.requestAudioFocus(focusRequest)
-            Log.i("ExtModuleManager", "requestMusicFocus status:$requestAudioFocus")
+            Log.i(TAG, "requestMusicFocus status:$requestAudioFocus")
             mCurrentAudioFocusRequest = focusRequest
             return 1
         }
@@ -884,10 +850,7 @@ class ExtModuleManager(context: Context) {
     }
 
     private fun releaseMusicFocus() {
-        Log.i(
-            "ExtModuleManager",
-            "releaseMusicFocus mCurrentAudioFocusRequest:" + mCurrentAudioFocusRequest
-        )
+        Log.i(TAG, "releaseMusicFocus mCurrentAudioFocusRequest:" + mCurrentAudioFocusRequest)
         if (mAudioManager == null || mCurrentAudioFocusRequest == null) {
             return
         }
@@ -899,7 +862,7 @@ class ExtModuleManager(context: Context) {
         val bArr2 = ByteArray(length)
         System.arraycopy(response, 0, bArr2, 0, length)
         val byte2HexStrNoBlank = IComUtils.byte2HexStrNoBlank(bArr2)
-        Log.i("ExtModuleManager", "handleCmdResponse len:$length, strCmd:$byte2HexStrNoBlank")
+        Log.i(TAG, "handleCmdResponse len:$length, strCmd:$byte2HexStrNoBlank")
         var i2 = 0
         while (i2 + 11 < length) {
             try {
@@ -910,7 +873,7 @@ class ExtModuleManager(context: Context) {
                         bytesToInt2 += 256
                     }
                     Log.i(
-                        "ExtModuleManager",
+                        TAG,
                         "handleCmdResponse index:$i2, currDataLen:$bytesToInt2"
                     )
                     if (i2 + bytesToInt2 + 11 > length) {
@@ -929,7 +892,7 @@ class ExtModuleManager(context: Context) {
                     i2++
                 }
             } catch (e: Exception) {
-                Log.e("ExtModuleManager", "handleCmdResponse e:$e")
+                Log.e(TAG, "handleCmdResponse e:$e")
                 return length
             }
         }
@@ -938,12 +901,12 @@ class ExtModuleManager(context: Context) {
 
     private fun parseCmd(bArr: ByteArray) {
         val byte2HexStr = IComUtils.byte2HexStr(bArr)
-        Log.i("ExtModuleManager", "parseCmd strCmd:$byte2HexStr")
+        Log.i(TAG, "parseCmd strCmd:$byte2HexStr")
         if (IComUtils.isIComCmd(bArr)) {
-            Log.i("ExtModuleManager", "parseCmd cmdByte[3]:" + bArr[3].toInt())
+            Log.i(TAG, "parseCmd cmdByte[3]:" + bArr[3].toInt())
             if (bArr[3].toInt() == 0) {
                 val b = bArr[4]
-                Log.i("ExtModuleManager", "parseCmd sys cmd:" + b.toInt())
+                Log.i(TAG, "parseCmd sys cmd:" + b.toInt())
                 when (b.toInt()) {
                     1 -> handleRecvFirmwareVersion(bArr)
                     4 -> handleMcuInitFinished()
@@ -956,7 +919,7 @@ class ExtModuleManager(context: Context) {
                 }
             } else if (bArr[3].toInt() == 1) {
                 val b2 = bArr[4]
-                Log.i("ExtModuleManager", "parseCmd module cmd:" + b2.toInt())
+                Log.i(TAG, "parseCmd module cmd:" + b2.toInt())
                 when (b2.toInt()) {
                     4 -> handleRecvSendStateChange(bArr[8].toInt())
                     17 -> {} // getMsgContent(bArr);
@@ -992,7 +955,7 @@ class ExtModuleManager(context: Context) {
                 }
             } else if (bArr[3].toInt() == 2 && bArr.size > 8) {
                 var bytesToInt2 = IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7]))
-                Log.i("ExtModuleManager", "parseCmd dataLen:$bytesToInt2")
+                Log.i(TAG, "parseCmd dataLen:$bytesToInt2")
                 if (bytesToInt2 < 0) {
                     bytesToInt2 += 256
                 }
@@ -1000,33 +963,33 @@ class ExtModuleManager(context: Context) {
                     val bArr2 = ByteArray(bytesToInt2)
                     System.arraycopy(bArr, 8, bArr2, 0, bytesToInt2)
                     val byte2HexStr2 = IComUtils.byte2HexStr(bArr2)
-                    Log.i("ExtModuleManager", "parseCmd retData:$byte2HexStr2")
+                    Log.i(TAG, "parseCmd retData:$byte2HexStr2")
                 }
             }
         }
     }
 
     private fun handleMcuInitFinished() {
-        Log.i("ExtModuleManager", "handleMcuInitFinished")
+        Log.i(TAG, "handleMcuInitFinished")
     }
 
     private fun handleMcuErrorReport(bArr: ByteArray) {
-        Log.i("ExtModuleManager", "handleMcuErrorReport")
+        Log.i(TAG, "handleMcuErrorReport")
         if (bArr.size <= 8 || IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7])) <= 0) {
             return
         }
         val b = bArr[8]
-        Log.i("ExtModuleManager", "handleMcuErrorReport errorCode:" + b.toInt())
+        Log.i(TAG, "handleMcuErrorReport errorCode:" + b.toInt())
     }
 
     private fun handleMcuStateReport(bArr: ByteArray) {
-        Log.i("ExtModuleManager", "handleMcuStateReport")
+        Log.i(TAG, "handleMcuStateReport")
         if (bArr.size <= 8 || IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7])) <= 0) {
             return
         }
         val b = bArr[8]
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "handleMcuStateReport cmdState:" + b.toInt() + ", mHasNewMessage:" + mHasNewMessage
         )
         if (b.toInt() == 1) {
@@ -1034,7 +997,7 @@ class ExtModuleManager(context: Context) {
         }
         if (b.toInt() != 2) {
             if (b.toInt() == 3) {
-                Log.i("ExtModuleManager", "handleMcuStateReport pcm error, we need to reset mcu!!!")
+                Log.i(TAG, "handleMcuStateReport pcm error, we need to reset mcu!!!")
                 resetMcu()
                 return
             }
@@ -1055,7 +1018,7 @@ class ExtModuleManager(context: Context) {
     private fun getModuleVersonContent(bArr: ByteArray) {
         if (bArr.size > 8) {
             var bytesToInt2 = IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7]))
-            Log.i("ExtModuleManager", "getModuleVersonContent dataLen:$bytesToInt2")
+            Log.i(TAG, "getModuleVersonContent dataLen:$bytesToInt2")
             if (bytesToInt2 < 0) {
                 bytesToInt2 += 256
             }
@@ -1064,7 +1027,7 @@ class ExtModuleManager(context: Context) {
                 val bArr2 = ByteArray(i)
                 System.arraycopy(bArr, 8, bArr2, 0, i)
                 val str = bArr2.toString(Charsets.UTF_8)
-                Log.i("ExtModuleManager", "getModuleVersonContent module:$str")
+                Log.i(TAG, "getModuleVersonContent module:$str")
 
 //                Channel channel = new Channel();
 //                this.setChannel(channel);
@@ -1073,7 +1036,7 @@ class ExtModuleManager(context: Context) {
     }
 
     fun checkTemperature(): Int {
-        Log.i("ExtModuleManager", "checkTemperature mCurrTemperature:" + mCurrTemperature)
+        Log.i(TAG, "checkTemperature mCurrTemperature:" + mCurrTemperature)
         val i = mCurrTemperature
         if (i < -20) {
             return -1
@@ -1082,22 +1045,10 @@ class ExtModuleManager(context: Context) {
     }
 
     fun handleBatteryChanged(i: Int, i2: Int, z: Boolean, z2: Boolean) {
-        Log.i(
-            "ExtModuleManager",
-            "handleBatteryChanged level:" + i + ", mCurrBatteryLevel:" + mCurrBatteryLevel
-        )
-        Log.i(
-            "ExtModuleManager",
-            "handleBatteryChanged temp:" + i2 + ", mCurrTemperature:" + mCurrTemperature
-        )
-        Log.i(
-            "ExtModuleManager",
-            "handleBatteryChanged isCharging:" + z + ", mIsCharging:" + mIsCharging
-        )
-        Log.i(
-            "ExtModuleManager",
-            "handleBatteryChanged isUsbCharge:" + z2 + ", mIsUSBCharge:" + mIsUSBCharge
-        )
+        Log.i(TAG, "handleBatteryChanged level:" + i + ", mCurrBatteryLevel:" + mCurrBatteryLevel)
+        Log.i(TAG, "handleBatteryChanged temp:" + i2 + ", mCurrTemperature:" + mCurrTemperature)
+        Log.i(TAG, "handleBatteryChanged isCharging:" + z + ", mIsCharging:" + mIsCharging)
+        Log.i(TAG, "handleBatteryChanged isUsbCharge:" + z2 + ", mIsUSBCharge:" + mIsUSBCharge)
         mCurrBatteryLevel = i
         mCurrTemperature = i2
         mIsUSBCharge = z2
@@ -1124,7 +1075,7 @@ class ExtModuleManager(context: Context) {
 
     fun handleChargeConnected() {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "handleChargeConnected mIsCmdStart:" + mIsCmdStart + ", mIsSetChannelFinished:" + isSetChannelFinished
         )
         if (mIsCmdStart) {
@@ -1134,7 +1085,7 @@ class ExtModuleManager(context: Context) {
 
     fun handleChargeDisconnected() {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "handleChargeDisconnected mIsCmdStart:" + mIsCmdStart + ", mIsSetChannelFinished:" + isSetChannelFinished
         )
         if (mIsCmdStart) {
@@ -1143,14 +1094,14 @@ class ExtModuleManager(context: Context) {
     }
 
     fun handleHeadsetPlugChanged(i: Int) {
-        Log.i("ExtModuleManager", "handleHeadsetPlugChanged state:$i")
+        Log.i(TAG, "handleHeadsetPlugChanged state:$i")
         if ((i == 1 || i == 0) && mIsCmdStart) {
             resetMcu()
         }
     }
 
     fun handleUsbDeviceDetached() {
-        Log.i("ExtModuleManager", "handleUsbDeviceDetached")
+        Log.i(TAG, "handleUsbDeviceDetached")
         if (mIsCmdStart) {
             resetMcu()
         }
@@ -1161,16 +1112,16 @@ class ExtModuleManager(context: Context) {
     */
     private fun setChannelComplete(bArr: ByteArray) {
         var success = false
-        Log.i("ExtModuleManager", "setChannelComplete mPreSetChannel:" + mPreSetChannel)
+        Log.i(TAG, "setChannelComplete mPreSetChannel:" + mPreSetChannel)
         if (bArr.size > 8) {
             var bytesToInt2 = IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7]))
-            Log.i("ExtModuleManager", "setChannelComplete dataLen:$bytesToInt2")
+            Log.i(TAG, "setChannelComplete dataLen:$bytesToInt2")
             if (bytesToInt2 < 0) {
                 bytesToInt2 += 256
             }
             if (bytesToInt2 == 1) {
                 val b = bArr[8]
-                Log.i("ExtModuleManager", "setChannelComplete state:" + b.toInt())
+                Log.i(TAG, "setChannelComplete state:" + b.toInt())
                 if (b.toInt() == 0) {
                     success = true
                 }
@@ -1205,7 +1156,7 @@ class ExtModuleManager(context: Context) {
 
     private fun handleCallInStateChanged(i: Int) {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "handleCallInStateChanged state:" + i + ", mCallInStateChangedCount:" + mCallInStateChangedCount
         )
         mCallInStateChangedCount = 0
@@ -1218,7 +1169,7 @@ class ExtModuleManager(context: Context) {
 
     private fun handleRecvSendStateChange(i: Int) {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "handleRecvSendStateChange state:" + i + ", mCallInStateChangedCount:" + mCallInStateChangedCount
         )
         if (i == 0 || i == 1) {
@@ -1247,23 +1198,23 @@ class ExtModuleManager(context: Context) {
     private fun handleRecvSendStateChange(bArr: ByteArray) {
         if (bArr.size > 8) {
             var bytesToInt2 = IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7]))
-            Log.i("ExtModuleManager", "handleRecvSendStateChange dataLen:$bytesToInt2")
+            Log.i(TAG, "handleRecvSendStateChange dataLen:$bytesToInt2")
             if (bytesToInt2 < 0) {
                 bytesToInt2 += 256
             }
-            Log.i("ExtModuleManager", "handleRecvSendStateChange 111 dataLen:$bytesToInt2")
+            Log.i(TAG, "handleRecvSendStateChange 111 dataLen:$bytesToInt2")
         }
     }
 
     fun setChannel(channel: com.agold.intercom.data.Channel?) {
         Log.i(
-            "ExtModuleManager",
+            TAG,
             "setChannel mIsCmdStart:" + mIsCmdStart + ", mIsStopPlay:" + mIsStopPlay + ", mIsStopRecord:" + mIsStopRecord + ", mIsUsbStarted:" + mIsUsbStarted + ", mIsPTTStopComplete:" + mIsPTTStopComplete + ", channel:" + channel
         )
         if (channel != null && mIsCmdStart && mIsStopRecord && mIsUsbStarted && mIsPTTStopComplete) {
             val num = channel.num
             val type = channel.type
-            Log.i("ExtModuleManager", "setChannel channelType:$type, channelNum:$num")
+            Log.i(TAG, "setChannel channelType:$type, channelNum:$num")
             if (type == 1) {
                 if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
                     mExtModuleProtocol!!.setDmr09AnalogGroup(
@@ -1303,7 +1254,7 @@ class ExtModuleManager(context: Context) {
 //                int contactType = channel.getContactType();
 //                int contactNum = channel.getContactNum();
 //                String contactList = channel.getContactList();
-//                Log.i("ExtModuleManager", "setChannel contactListStr:" + contactList + ", contactType:" + contactType + ", contactNumber:" + contactNum);
+//                Log.i(TAG, "setChannel contactListStr:" + contactList + ", contactType:" + contactType + ", contactNumber:" + contactNum);
 //                if (contactList == null) {
 //                    contactList = "";
 //                    for (int i = 0; i < 32; i++) {
@@ -1322,7 +1273,7 @@ class ExtModuleManager(context: Context) {
 //                    try {
 //                        iArr[i2] = Integer.parseInt(split[i2]);
 //                    } catch (Exception e) {
-//                        Log.i("ExtModuleManager", "setChannel ex:" + e);
+//                        Log.i(TAG, "setChannel ex:" + e);
 //                    }
 //                }
 //                String encryptKey = channel.getEncryptKey();
@@ -1334,7 +1285,7 @@ class ExtModuleManager(context: Context) {
 //                    int outboundSlot = channel.getOutboundSlot();
 //                    int channelMode = channel.getChannelMode();
 //                    int micGain = channel.getMicGain();
-//                    Log.i("ExtModuleManager", "setChannel inboundSlot:" + inboundSlot + ", outboundSlot:" + outboundSlot + ", channelMode:" + channelMode + ", deviceId:" + deviceId + ", micGain:" + micGain);
+//                    Log.i(TAG, "setChannel inboundSlot:" + inboundSlot + ", outboundSlot:" + outboundSlot + ", channelMode:" + channelMode + ", deviceId:" + deviceId + ", micGain:" + micGain);
 //                    this.mExtModuleProtocol.setDmr09DigitalGroup(channel.getPower(), (int) channel.getRecvFreq(), (int) channel.getSendFreq(), deviceId, channel.getColorCode(), contactType, i3, channel.getEncryptSwitch(), encryptKey, iArr, inboundSlot, outboundSlot, channelMode, 1, 7, micGain, 2);
 //                } else {
 //                    this.mExtModuleProtocol.setDigitalGroup(channel.getPower(), (int) channel.getRecvFreq(), (int) channel.getSendFreq(), deviceId, channel.getColorCode(), contactType, i3, channel.getEncryptSwitch(), encryptKey, iArr);
@@ -1351,10 +1302,7 @@ class ExtModuleManager(context: Context) {
     fun setAudioRecordPath(str: String) {
         // TODO
         val pttRecordEnable = 1
-        Log.i(
-            "ExtModuleManager",
-            "setAudioRecordPath name:$str, isPttRecordEnable:$pttRecordEnable"
-        )
+        Log.i(TAG, "setAudioRecordPath name:$str, isPttRecordEnable:$pttRecordEnable")
         if (pttRecordEnable == 1) {
             mAudioRecordPath =
                 File(
@@ -1364,7 +1312,7 @@ class ExtModuleManager(context: Context) {
         } else {
             mAudioRecordPath = null
         }
-        Log.i("ExtModuleManager", "setAudioRecordPath mAudioRecordPath:" + mAudioRecordPath)
+        Log.i(TAG, "setAudioRecordPath mAudioRecordPath:" + mAudioRecordPath)
     }
 
     @Throws(Exception::class)
@@ -1387,12 +1335,12 @@ class ExtModuleManager(context: Context) {
             if (SystemProperties.getBoolean("ro.agold.extmodule.hal", false)) {
                 val file = File("/sys/hall_status/hall_status")
                 if (!file.exists()) {
-                    Log.i("ExtModuleManager", "isAntennaInstalled hall file is not exist!")
+                    Log.i(TAG, "isAntennaInstalled hall file is not exist!")
                     return false
                 }
                 return try {
                     val readFile = readFile(file)
-                    Log.i("ExtModuleManager", "isAntennaInstalled status = $readFile")
+                    Log.i(TAG, "isAntennaInstalled status = $readFile")
                     !readFile.contains("0")
                 } catch (e: Exception) {
                     e.printStackTrace()
