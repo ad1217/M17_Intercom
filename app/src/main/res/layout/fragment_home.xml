@@ -11,45 +11,86 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="16dp"
         android:layout_marginEnd="8dp"
         android:textAlignment="center"
         android:textSize="20sp"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/button_stop" />
 
-    <LinearLayout
-        android:layout_width="409dp"
-        android:layout_height="276dp"
+    <Button
+        android:id="@+id/button_stop"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Stop"
+        app:layout_constraintBottom_toTopOf="@+id/text_home"
+        app:layout_constraintEnd_toStartOf="@+id/guideline4"
+        app:layout_constraintStart_toStartOf="@+id/guideline2"
+        app:layout_constraintTop_toBottomOf="@+id/button_set_channel" />
+
+    <Button
+        android:id="@+id/button_set_channel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Set Channel"
+        app:layout_constraintBottom_toTopOf="@+id/button_stop"
+        app:layout_constraintEnd_toStartOf="@+id/guideline3"
+        app:layout_constraintStart_toStartOf="@+id/guideline2"
+        app:layout_constraintTop_toBottomOf="@+id/button_start" />
+
+    <Button
+        android:id="@+id/button_start"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:text="Start"
+        app:layout_constraintBottom_toTopOf="@+id/button_set_channel"
+        app:layout_constraintEnd_toStartOf="@+id/guideline3"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="@+id/guideline2"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
-        tools:layout_editor_absoluteX="1dp"
-        tools:layout_editor_absoluteY="79dp">
+        app:layout_constraintGuide_percent="0.2" />
 
-        <Button
-            android:id="@+id/button_start"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Start" />
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.6" />
 
-        <Button
-            android:id="@+id/button_set_channel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Set Channel" />
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.8" />
 
-        <Button
-            android:id="@+id/button_start_play"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Start Play" />
+    <TextView
+        android:id="@+id/mcu_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@+id/button_start"
+        app:layout_constraintEnd_toStartOf="@+id/guideline4"
+        app:layout_constraintStart_toEndOf="@+id/button_start"
+        app:layout_constraintTop_toTopOf="@+id/button_start"
+        tools:text="mcu state" />
 
-        <Button
-            android:id="@+id/button_stop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Stop" />
+    <TextView
+        android:id="@+id/channel_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@+id/button_set_channel"
+        app:layout_constraintEnd_toStartOf="@+id/guideline4"
+        app:layout_constraintStart_toEndOf="@+id/button_set_channel"
+        app:layout_constraintTop_toTopOf="@+id/button_set_channel"
+        tools:text="ch state" />
 
-    </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

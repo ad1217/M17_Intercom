@@ -8,8 +8,11 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.asLiveData
+import androidx.lifecycle.lifecycleScope
 import com.agold.intercom.data.Channel
 import com.agold.intercom.module.ExtModuleManager
+import kotlinx.coroutines.launch
 import name.adamgoldsmith.m17_intercom.databinding.FragmentHomeBinding
 
 class HomeFragment : Fragment() {
@@ -21,25 +24,23 @@ class HomeFragment : Fragment() {
     private val binding get() = _binding!!
 
     override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
     ): View {
         val homeViewModel =
-                ViewModelProvider(this).get(HomeViewModel::class.java)
+            ViewModelProvider(this).get(HomeViewModel::class.java)
+        val extModuleManager = ExtModuleManager.getInstance(requireContext())
 
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         val root: View = binding.root
-        binding.buttonStart.setOnClickListener{view ->
-            val extModuleManager = ExtModuleManager.getInstance(requireContext())
+        binding.buttonStart.setOnClickListener { view ->
             extModuleManager.start()
 
             Log.d("m17_intercom", "Started")
         }
 
         binding.buttonSetChannel.setOnClickListener { view ->
-            val extModuleManager = ExtModuleManager.getInstance(requireContext())
-
             val channel = Channel(
                 type = 1,
                 power = 0,
@@ -51,12 +52,9 @@ class HomeFragment : Fragment() {
                 recvSubAudioType = 1,
                 sendSubAudioType = 1,
             )
-            extModuleManager.setChannel(channel)
-        }
-
-        binding.buttonStartPlay.setOnClickListener { view ->
-            val extModuleManager = ExtModuleManager.getInstance(requireContext())
-            extModuleManager.startPlay()
+            lifecycleScope.launch {
+                extModuleManager.setChannel(channel)
+            }
         }
 
         binding.buttonStop.setOnClickListener { view ->
@@ -67,6 +65,12 @@ class HomeFragment : Fragment() {
         val textView: TextView = binding.textHome
         homeViewModel.text.observe(viewLifecycleOwner) {
             textView.text = it
+        }
+        extModuleManager.mcuState.asLiveData().observe(viewLifecycleOwner) {
+            binding.mcuText.text = it.name
+        }
+        extModuleManager.channelState.asLiveData().observe(viewLifecycleOwner) {
+            binding.channelText.text = it.name
         }
         return root
     }
