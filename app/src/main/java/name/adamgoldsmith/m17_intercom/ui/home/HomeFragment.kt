@@ -41,12 +41,13 @@ class HomeFragment : Fragment() {
         }
 
         binding.buttonSetChannel.setOnClickListener { view ->
+            val freq = binding.frequency.text.toString().toLong()
             val channel = Channel(
                 type = 1,
                 power = 0,
                 name = "Test",
-                sendFreq = 446625000,
-                recvFreq = 446625000,
+                sendFreq = freq,
+                recvFreq = freq,
                 band = 0,
                 squelchLevel = 2,
                 recvSubAudioType = 1,
