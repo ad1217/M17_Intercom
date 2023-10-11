@@ -9,9 +9,6 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.os.Environment
-import android.os.Handler
-import android.os.Looper
-import android.os.Message
 import android.os.PowerManager
 import android.os.RemoteException
 import android.os.SystemProperties
@@ -19,12 +16,21 @@ import android.util.Log
 import com.agold.intercom.utils.IComUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModule
 import vendor.mediatek.hardware.aguiextmodule.V1_0.IAguiExtModuleReadCallback
 import java.io.BufferedOutputStream
@@ -36,9 +42,40 @@ import java.io.FileReader
 import java.io.IOException
 import java.nio.file.Files
 import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 private const val TAG = "ExtModuleManager"
+
+enum class State {
+    STOPPED,
+    STARTING,
+    READY,
+    TIMEOUT,
+}
+
+sealed class ExtModuleManagerEvent {
+    data class CallStateChanged(val state: Boolean) : ExtModuleManagerEvent()
+    data class PlayStateChanged(val state: Boolean) : ExtModuleManagerEvent()
+    data class USBChargeChanged(val charging: Boolean) : ExtModuleManagerEvent()
+}
+
+sealed class ModuleCommand {
+    data class RecvFirmwareVersion(val bArr: ByteArray) : ModuleCommand()
+    object McuInitFinished : ModuleCommand()
+    object McuUpdateFinished : ModuleCommand()
+    object McuStartFinished : ModuleCommand()
+    data class McuErrorReport(val bArr: ByteArray) : ModuleCommand()
+    data class McuStateReport(val bArr: ByteArray) : ModuleCommand()
+    object DmrUpdated : ModuleCommand()
+    object DmrUpdateFailed : ModuleCommand()
+    data class Message(val bArr: ByteArray) : ModuleCommand()
+    data class ModuleVersion(val version: String?) : ModuleCommand()
+    data class Dmr09CallInfo(val bArr: ByteArray) : ModuleCommand()
+    data class Dmr09Message(val bArr: ByteArray) : ModuleCommand()
+    data class RecvSendStateChange(val state: Int) : ModuleCommand()
+    data class MessageResponse(val b: Byte) : ModuleCommand()
+    data class SetChannelComplete(val bArr: ByteArray) : ModuleCommand()
+    data class ModuleResponse(val b: Byte) : ModuleCommand()
+}
 
 class ExtModuleManager(context: Context) {
     private val mAudioManager: AudioManager?
@@ -83,67 +120,17 @@ class ExtModuleManager(context: Context) {
         .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
-    private val mHandler: Handler = object : Handler(Looper.getMainLooper()) {
-        override fun handleMessage(message: Message) {
-            when (message.what) {
-                1 -> if (!SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-                    // onManagerStarted();
-                }
-
-                2 -> if (!SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-                    // onManagerStartTimeout();
-                }
-
-                3 -> if (!SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-                    // onMcuUpdateStateChanged(1);
-                }
-
-                4 -> if (!SystemProperties.getBoolean("ro.agold.extmodule.cts", false)) {
-                    // onMcuUpdateStateChanged(0);
-                    // handleMcuUpdateFinished();
-                }
-
-                5 -> {} // onSetChannelComplete();
-                6 -> onSetChannelTimeout()
-                7 -> {} // onMcuStartComplete();
-                8 -> {} // onResetFactoryStart();
-                9 -> {
-                    // onMsgReceived(message.arg1, (String) message.obj);
-                    // onMsgReceived();
-                }
-
-                10 -> {} // onDmrUpdateStateChanged(1);
-                11 -> {
-                    // handleDmrStopped();
-                    // onDmrUpdateStateChanged(0);
-                }
-
-                12 -> {} // handleGetDmrTimeout();
-                13 -> handleCallInStateChanged(message.arg1)
-                14 -> {
-                    mIsPTTStopComplete = true
-                }
-
-                15 -> {} // onDmrUpdateFailed();
-                16 -> {} // handleCallInFast();
-                17 -> {
-                    val str = message.obj as String
-                    Log.i(TAG, "MSG_GET_INCALL_INFO callInfo:$str")
-                    // String[] split = str.split(":");
-                    // onGetIncallInfo(Integer.parseInt(split[0]), Integer.parseInt(split[1]), Integer.parseInt(split[2]));
-                }
-
-                18 -> openPcmIn()
-                19 -> closePcmIn()
-                20 -> openPcmOut()
-                21 -> closePcmOut()
-                22 -> {} // onScanChannelsStart();
-                23 -> {} // onScanChannelsComplete();
-            }
-        }
-    }
     private var mHasNewMessage = false
     private var mCallInStateChangedCount = 0
+
+    private val _moduleCommandEvents = MutableSharedFlow<ModuleCommand>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    private val _mcuState = MutableStateFlow(State.STOPPED)
+    val mcuState = _mcuState.asStateFlow()
+    private val _channelState = MutableStateFlow(State.STOPPED)
+    val channelState = _channelState.asStateFlow()
 
     init {
         Log.i(TAG, "ExtModuleManager constuct")
@@ -174,15 +161,6 @@ class ExtModuleManager(context: Context) {
         mContext!!.sendBroadcast(intent)
     }
 
-    private fun onSetChannelTimeout() {
-        Log.i(TAG, "onSetChannelTimeout mIsCmdStart:$mIsCmdStart")
-        if (mIsCmdStart) {
-            resetMcu()
-        }
-        isSetChannelFinished = true
-        mContext!!.sendBroadcast(Intent("agui.intercom.intent.action.START_TIMEOUT"))
-    }
-
     @get:Synchronized
     val aguiExtModule: IAguiExtModule?
         get() {
@@ -211,35 +189,41 @@ class ExtModuleManager(context: Context) {
     }
 
     fun start() {
+        mScope.launch {
+            _moduleCommandEvents.collect {
+                Log.d(TAG, "Module Command: $it")
+            }
+        }
+
         Log.i(
             TAG,
             "start mAllExit:$mAllExit, mIsCmdStart:$mIsCmdStart, mIsMCUStarted:$mIsMCUStarted"
         )
         mAllExit = false
         mIsStopping = false
-        startMcu()
         mScope.launch { createCmdReadThread() }
         mScope.launch { createCallInThread() }
         mScope.launch { createAudioPlayThread() }
         mScope.launch { createAudioRecordThread() }
-        mHandler.removeMessages(1)
-        mHandler.sendMessage(mHandler.obtainMessage(1))
-        mHandler.removeMessages(2)
-        mHandler.sendMessageDelayed(mHandler.obtainMessage(2), 30000L)
+
+        mScope.launch { startMcu() }
     }
 
     fun stop() {
         Log.i(TAG, "stop-------")
         stopCom()
+        _mcuState.value = State.STOPPED
+        _channelState.value = State.STOPPED
         mIsStopping = true
-        mHandler.postDelayed({
+        mScope.launch {
+            delay(300)
             exit()
             if (mContext != null) {
 //                    ExtModuleManager.mContext.stopService(new Intent(ExtModuleManager.mContext, IComService.class));
                 Log.i(TAG, "stopService----------")
             }
             mIsStopping = true
-        }, 300L)
+        }
     }
 
     fun exit() {
@@ -271,38 +255,45 @@ class ExtModuleManager(context: Context) {
         }
     }
 
-    fun startMcu() {
+    private suspend fun startMcu() {
+        _mcuState.value = State.STARTING
         Log.i(
             TAG,
             "startMcu mIsMCUStarted:$mIsMCUStarted, mIsCmdStart:$mIsCmdStart, mAllExit:$mAllExit, mIsStopping:$mIsStopping"
         )
-        if (mAllExit || mIsStopping) {
+        Log.i(TAG, "startMcu aguiExtModule:$aguiExtModule")
+
+        if (mAllExit || mIsStopping || mIsMCUStarted) {
             return
         }
-        Thread(Runnable {
-            try {
-                if (mIsMCUStarted) {
-                    return@Runnable
-                }
-                try {
-                    if (aguiExtModule != null) {
-                        mAguiExtModule!!.startMcu()
-                        mIsMCUStarted = true
-                        mIsUpdatingDmr = false
-                    }
-                    mHandler.postDelayed({ handleMcuStartFinished() }, 2000L)
-                } catch (e: Exception) {
-                    Log.e(TAG, "startMcu ex:$e")
-                }
-            } catch (e2: Exception) {
-                Log.e(TAG, "startMcu e:$e2")
+
+        try {
+            if (aguiExtModule != null) {
+                mAguiExtModule!!.startMcu()
+                mIsMCUStarted = true
+                mIsUpdatingDmr = false
             }
-        }).start()
+        } catch (e: Exception) {
+            Log.e(TAG, "startMcu ex:$e")
+        }
+
+        // TODO: this is replicating the behaviour of the original code, but it seems a bit odd
+        withTimeoutOrNull(2000) {
+            _moduleCommandEvents.filterIsInstance(ModuleCommand.McuStartFinished::class).first()
+        }
+        Log.i(TAG, "handleMcuStartFinished mIsSetChannelFinished:$isSetChannelFinished")
+        mIsUsbStarted = true
+        isSetChannelFinished = false
+        _mcuState.value = State.READY
+        mIsCmdStart = true
+
+        delay(1000)
+        getMcuFirmwareVersion()
     }
 
     fun stopMcu() {
         Log.i(TAG, "stopMcu")
-        Thread {
+        mScope.launch {
             try {
                 Log.i(TAG, "stopMcu mAguiExtModule:$mAguiExtModule")
                 if (aguiExtModule != null) {
@@ -314,22 +305,18 @@ class ExtModuleManager(context: Context) {
             } catch (e: Exception) {
                 Log.e(TAG, "stopMcu e:$e")
             }
-        }.start()
+        }
         isSetChannelFinished = false
     }
 
     fun resetMcu() {
         Log.i(TAG, "resetMcu")
         stopCom()
-        mHandler.postDelayed({ startMcu() }, 4000L)
-    }
 
-    fun startCom() {
-        Log.i(TAG, "startCom mIsCmdStart:$mIsCmdStart")
-        if (mIsCmdStart) {
-            return
+        mScope.launch {
+            delay(4000L)
+            startMcu()
         }
-        mIsCmdStart = true
     }
 
     fun stopCom() {
@@ -346,46 +333,23 @@ class ExtModuleManager(context: Context) {
         stopMcu()
     }
 
-    private fun handleMcuStartFinished() {
-        Log.i(TAG, "handleMcuStartFinished mIsSetChannelFinished:$isSetChannelFinished")
-        mIsUsbStarted = true
-        isSetChannelFinished = false
-        mHandler.removeMessages(7)
-        val handler = mHandler
-        handler.sendMessage(handler.obtainMessage(7))
-        mHandler.removeMessages(2)
-        val handler2 = mHandler
-        handler2.sendMessageDelayed(handler2.obtainMessage(2), 30000L)
-        startCom()
-        mHandler.postDelayed({ mcuFirmwareVersion }, 1000L)
-    }
 
-    private val mcuFirmwareVersion: Unit
-        get() {
-            Log.i(
-                TAG,
-                "getMcuFirmwareVersion mCurrFirmware:$mCurrFirmware, mIsCmdStart:$mIsCmdStart"
-            )
-            if (mIsCmdStart) {
-                mCurrFirmware = null
-                val extModuleProtocol = mExtModuleProtocol
-                extModuleProtocol?.getFirmwareVersion()
-                mHandler.postDelayed({
-                    if (mExtModuleProtocol != null) {
-                        if (mCurrFirmware.isNullOrEmpty()) {
-                            mExtModuleProtocol.getFirmwareVersion()
-                        }
-                    }
-                }, 1000L)
-                mHandler.postDelayed({
-                    if (mExtModuleProtocol != null) {
-                        if (mCurrFirmware.isNullOrEmpty()) {
-                            mExtModuleProtocol.getFirmwareVersion()
-                        }
-                    }
-                }, 2000L)
+    private suspend fun getMcuFirmwareVersion() {
+        Log.i(TAG, "getMcuFirmwareVersion mCurrFirmware:$mCurrFirmware, mIsCmdStart:$mIsCmdStart")
+        if (mIsCmdStart) {
+            mCurrFirmware = null
+            mExtModuleProtocol?.getFirmwareVersion()
+            // TODO: this could be cleaned up a bit
+            delay(1000)
+            if (mCurrFirmware.isNullOrEmpty()) {
+                mExtModuleProtocol?.getFirmwareVersion()
+            }
+            delay(1000)
+            if (mCurrFirmware.isNullOrEmpty()) {
+                mExtModuleProtocol?.getFirmwareVersion()
             }
         }
+    }
 
     private fun handleRecvFirmwareVersion(bArr: ByteArray) {
         Log.i(TAG, "handleRecvFirmwareVersion mCurrFirmware:$mCurrFirmware")
@@ -404,9 +368,6 @@ class ExtModuleManager(context: Context) {
                 } else {
                     mExtModuleProtocol!!.getModuleSoftVersion()
                 }
-                mHandler.removeMessages(12)
-                val handler = mHandler
-                handler.sendMessageDelayed(handler.obtainMessage(12), 3000L)
             }
         }
     }
@@ -483,10 +444,11 @@ class ExtModuleManager(context: Context) {
             }
         }.start()
         onCallStateChanged(0)
-        mHandler.postDelayed({
+        mScope.launch {
+            delay(500)
             mIsStopRecord = true
             mIsPcmOutStart = false
-        }, 500L)
+        }
         if (mIsStopPlay) {
             releaseMusicFocus()
         }
@@ -497,7 +459,8 @@ class ExtModuleManager(context: Context) {
             while (isActive) {
                 try {
                     if (!mIsMCUStarted) {
-                        delay(1000L)
+                        // Log.i(TAG, "createCmdReadThread: waiting for MCU Start")
+                        delay(100L)
                     } else if (mIsUpdatingDmr) {
                         delay(100L)
                     } else {
@@ -648,10 +611,7 @@ class ExtModuleManager(context: Context) {
                         delay(10L)
                     } else {
                         val bArr = ByteArray(1920)
-                        Log.i(
-                            TAG,
-                            "createAudioRecordThread mAudioRecordPath:$mAudioRecordPath"
-                        )
+                        Log.i(TAG, "createAudioRecordThread mAudioRecordPath:$mAudioRecordPath")
                         val audioRecordPathParent = mAudioRecordPath!!.parentFile
                         if (audioRecordPathParent != null && !audioRecordPathParent.exists()) {
                             audioRecordPathParent.mkdirs()
@@ -715,9 +675,10 @@ class ExtModuleManager(context: Context) {
 //                }
 //            }
             mIsStopPlay = false
-            mHandler.removeMessages(18)
-            val handler = mHandler
-            handler.sendMessageDelayed(handler.obtainMessage(18), 100L)
+            mScope.launch {
+                delay(100)
+                openPcmIn()
+            }
             requestMusicFocus()
             mStartPlayTime = System.currentTimeMillis()
             setAudioRecordPath("" + mStartPlayTime)
@@ -766,9 +727,7 @@ class ExtModuleManager(context: Context) {
             return
         }
         mIsStopPlay = true
-        mHandler.removeMessages(19)
-        val handler = mHandler
-        handler.sendMessage(handler.obtainMessage(19))
+        mScope.launch { closePcmIn() }
         try {
             if (mPcmRecordBOS != null) {
                 mPcmRecordBOS!!.close()
@@ -793,7 +752,8 @@ class ExtModuleManager(context: Context) {
         if (mAudioState == 0) {
             releaseMusicFocus()
         }
-        mHandler.postDelayed({
+        mScope.launch {
+            delay(500)
             if (mIsStopPlay && mHasNewMessage) {
                 if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
                     mExtModuleProtocol!!.getDmr09MsgContent()
@@ -802,7 +762,7 @@ class ExtModuleManager(context: Context) {
                 }
                 mHasNewMessage = false
             }
-        }, 500L)
+        }
         Log.i(TAG, "stopPlay end-----------------")
     }
 
@@ -823,9 +783,7 @@ class ExtModuleManager(context: Context) {
                 if (requestMusicFocus() == 0) {
                     mAudioState = 0
                 }
-                mHandler.removeMessages(20)
-                val handler2 = mHandler
-                handler2.sendMessage(handler2.obtainMessage(20))
+                mScope.launch { openPcmOut() }
                 onCallStateChanged(1)
             }
         }
@@ -872,10 +830,7 @@ class ExtModuleManager(context: Context) {
                     if (bytesToInt2 < 0) {
                         bytesToInt2 += 256
                     }
-                    Log.i(
-                        TAG,
-                        "handleCmdResponse index:$i2, currDataLen:$bytesToInt2"
-                    )
+                    Log.i(TAG, "handleCmdResponse index:$i2, currDataLen:$bytesToInt2")
                     if (i2 + bytesToInt2 + 11 > length) {
                         // this didn't decompile correctly, so it was reconstructed by hand and may not be accurate
                         val r8 = byteArrayOf(bArr2[i2 + 3], bArr2[i2 + 4])
@@ -908,49 +863,80 @@ class ExtModuleManager(context: Context) {
                 val b = bArr[4]
                 Log.i(TAG, "parseCmd sys cmd:" + b.toInt())
                 when (b.toInt()) {
-                    1 -> handleRecvFirmwareVersion(bArr)
-                    4 -> handleMcuInitFinished()
-                    5 -> {} // handleMcuUpdateFinished()
-                    6 -> handleMcuStartFinished()
-                    7 -> handleMcuErrorReport(bArr)
-                    8 -> handleMcuStateReport(bArr)
-                    9 -> {} // handleDmrUpdated()
-                    10 -> {} // handleDmrUpdatFailed()
+                    1 -> {
+                        handleRecvFirmwareVersion(bArr)
+                        _moduleCommandEvents.tryEmit(ModuleCommand.RecvFirmwareVersion(bArr))
+                    }
+
+                    4 -> {
+                        Log.i(TAG, "handleMcuInitFinished")
+                        _moduleCommandEvents.tryEmit(ModuleCommand.McuInitFinished)
+                    }
+
+                    5 -> _moduleCommandEvents.tryEmit(ModuleCommand.McuUpdateFinished)
+                    6 -> _moduleCommandEvents.tryEmit(ModuleCommand.McuStartFinished)
+                    7 -> {
+                        _moduleCommandEvents.tryEmit(ModuleCommand.McuErrorReport(bArr))
+                        handleMcuErrorReport(bArr)
+                    }
+
+                    8 -> {
+                        _moduleCommandEvents.tryEmit(ModuleCommand.McuStateReport(bArr))
+                        handleMcuStateReport(bArr)
+                    }
+
+                    9 -> _moduleCommandEvents.tryEmit(ModuleCommand.DmrUpdated)
+
+                    10 -> _moduleCommandEvents.tryEmit(ModuleCommand.DmrUpdateFailed)
                 }
             } else if (bArr[3].toInt() == 1) {
                 val b2 = bArr[4]
                 Log.i(TAG, "parseCmd module cmd:" + b2.toInt())
                 when (b2.toInt()) {
-                    4 -> handleRecvSendStateChange(bArr[8].toInt())
-                    17 -> {} // getMsgContent(bArr);
-                    37 -> getModuleVersonContent(bArr)
+                    4 -> {
+                        handleRecvSendStateChange(bArr[8].toInt())
+                        _moduleCommandEvents.tryEmit(ModuleCommand.RecvSendStateChange(bArr[8].toInt()))
+                    }
+
+                    17 -> _moduleCommandEvents.tryEmit(ModuleCommand.Message(bArr))
+                    37 -> {
+                        val version = getModuleVersonContent(bArr);
+                        _moduleCommandEvents.tryEmit(ModuleCommand.ModuleVersion(version))
+                    }
+
                     43 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                        // getDmr09CallInfo(bArr);
+                        _moduleCommandEvents.tryEmit(ModuleCommand.Dmr09CallInfo(bArr))
                     }
 
                     45 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                        // getDmr09MsgContent(bArr);
+                        _moduleCommandEvents.tryEmit(ModuleCommand.Dmr09Message(bArr))
                     }
 
-                    6 -> handleRecvSendStateChange(bArr)
-                    7 -> {} // handleMsgResponse(bArr[8]);
+                    6 -> {
+                        // TODO: This method doesn't seem to do anything
+                        handleRecvSendStateChange(bArr)
+                        // _moduleCommandEvents.tryEmit(ModuleCommand.RecvSendStateChange(bArr))
+                    }
+
+                    7 -> _moduleCommandEvents.tryEmit(ModuleCommand.MessageResponse(bArr[8]))
                     34 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                        setChannelComplete(bArr)
+                        _moduleCommandEvents.tryEmit(ModuleCommand.SetChannelComplete(bArr))
                     }
 
                     35 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                        setChannelComplete(bArr)
+                        _moduleCommandEvents.tryEmit(ModuleCommand.SetChannelComplete(bArr))
                     }
 
                     52 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                        getModuleVersonContent(bArr)
+                        val version = getModuleVersonContent(bArr);
+                        _moduleCommandEvents.tryEmit(ModuleCommand.ModuleVersion(version))
                     }
 
-                    53 -> setChannelComplete(bArr)
+                    53 -> _moduleCommandEvents.tryEmit(ModuleCommand.SetChannelComplete(bArr))
                     54 -> if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                        // handleModuleResponse(bArr[8]);
+                        _moduleCommandEvents.tryEmit(ModuleCommand.ModuleResponse(bArr[8]))
                     } else {
-                        setChannelComplete(bArr)
+                        _moduleCommandEvents.tryEmit(ModuleCommand.SetChannelComplete(bArr))
                     }
                 }
             } else if (bArr[3].toInt() == 2 && bArr.size > 8) {
@@ -967,10 +953,6 @@ class ExtModuleManager(context: Context) {
                 }
             }
         }
-    }
-
-    private fun handleMcuInitFinished() {
-        Log.i(TAG, "handleMcuInitFinished")
     }
 
     private fun handleMcuErrorReport(bArr: ByteArray) {
@@ -1003,8 +985,10 @@ class ExtModuleManager(context: Context) {
             }
             return
         }
-        mHandler.removeMessages(14)
-        mHandler.postDelayed({ mIsPTTStopComplete = true }, 1000L)
+        mScope.launch {
+            delay(1000)
+            mIsPTTStopComplete = true
+        }
         if (mIsStopRecord && mHasNewMessage) {
             if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
                 mExtModuleProtocol!!.getDmr09MsgContent()
@@ -1015,7 +999,7 @@ class ExtModuleManager(context: Context) {
         }
     }
 
-    private fun getModuleVersonContent(bArr: ByteArray) {
+    private fun getModuleVersonContent(bArr: ByteArray): String? {
         if (bArr.size > 8) {
             var bytesToInt2 = IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7]))
             Log.i(TAG, "getModuleVersonContent dataLen:$bytesToInt2")
@@ -1031,8 +1015,10 @@ class ExtModuleManager(context: Context) {
 
 //                Channel channel = new Channel();
 //                this.setChannel(channel);
+                return str
             }
         }
+        return null
     }
 
     fun checkTemperature(): Int {
@@ -1107,53 +1093,6 @@ class ExtModuleManager(context: Context) {
         }
     }
 
-    /* JADX WARN: Removed duplicated region for block: B:13:0x0067  */ /*
-        Code decompiled incorrectly, please refer to instructions dump.
-    */
-    private fun setChannelComplete(bArr: ByteArray) {
-        var success = false
-        Log.i(TAG, "setChannelComplete mPreSetChannel:" + mPreSetChannel)
-        if (bArr.size > 8) {
-            var bytesToInt2 = IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7]))
-            Log.i(TAG, "setChannelComplete dataLen:$bytesToInt2")
-            if (bytesToInt2 < 0) {
-                bytesToInt2 += 256
-            }
-            if (bytesToInt2 == 1) {
-                val b = bArr[8]
-                Log.i(TAG, "setChannelComplete state:" + b.toInt())
-                if (b.toInt() == 0) {
-                    success = true
-                }
-            }
-            if (!success) {
-                mHandler.removeMessages(6)
-                mHandler.sendMessage(mHandler.obtainMessage(6))
-                return
-            }
-        }
-        isSetChannelFinished = true
-        mHandler.removeMessages(6)
-        mHandler.removeMessages(2)
-        if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-            mHandler.removeMessages(5)
-            val handler2 = mHandler
-            handler2.sendMessageDelayed(handler2.obtainMessage(5), 500L)
-        } else {
-            mHandler.removeMessages(5)
-            val handler3 = mHandler
-            handler3.sendMessage(handler3.obtainMessage(5))
-        }
-        // TODO
-        val recvVolume = 6
-        if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-            mExtModuleProtocol!!.setDmr09ReceiverVolume(recvVolume)
-        } else {
-            mExtModuleProtocol!!.setReceiverVolume(recvVolume)
-        }
-        stopPlay()
-    }
-
     private fun handleCallInStateChanged(i: Int) {
         Log.i(
             TAG,
@@ -1177,20 +1116,19 @@ class ExtModuleManager(context: Context) {
             val i2 = mCallInStateChangedCount + 1
             mCallInStateChangedCount = i2
             if (i2 % 10 == 0) {
-                mHandler.removeMessages(16)
-                val handler = mHandler
-                handler.sendMessage(handler.obtainMessage(16))
+                // mScope.launch { handleCallInFast() }
             }
         } else if (i == 2) {
             startPlay()
         } else if (i == 3) {
             stopPlay()
             if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
-                mHandler.postDelayed({
+                mScope.launch {
+                    delay(800)
                     if (mIsStopPlay) {
                         mExtModuleProtocol!!.getDmr09MsgContent()
                     }
-                }, 800L)
+                }
             }
         }
     }
@@ -1206,7 +1144,7 @@ class ExtModuleManager(context: Context) {
         }
     }
 
-    fun setChannel(channel: com.agold.intercom.data.Channel?) {
+    suspend fun setChannel(channel: com.agold.intercom.data.Channel?) {
         Log.i(
             TAG,
             "setChannel mIsCmdStart:" + mIsCmdStart + ", mIsStopPlay:" + mIsStopPlay + ", mIsStopRecord:" + mIsStopRecord + ", mIsUsbStarted:" + mIsUsbStarted + ", mIsPTTStopComplete:" + mIsPTTStopComplete + ", channel:" + channel
@@ -1247,9 +1185,6 @@ class ExtModuleManager(context: Context) {
                 }
                 mPreSetChannel = num
                 isSetChannelFinished = false
-                mHandler.removeMessages(6)
-                val handler = mHandler
-                handler.sendMessageDelayed(handler.obtainMessage(6), 3000L)
             } else if (type == 0) {
 //                int contactType = channel.getContactType();
 //                int contactNum = channel.getContactNum();
@@ -1295,6 +1230,61 @@ class ExtModuleManager(context: Context) {
 //                this.mHandler.removeMessages(6);
 //                Handler handler2 = this.mHandler;
 //                handler2.sendMessageDelayed(handler2.obtainMessage(6), 3000L);
+            }
+
+            try {
+                val bArr = withTimeout(3000) {
+                    _moduleCommandEvents.filterIsInstance(ModuleCommand.SetChannelComplete::class)
+                        .first()
+                }.bArr
+
+                var success = false
+                Log.i(TAG, "setChannelComplete mPreSetChannel:" + mPreSetChannel)
+                if (bArr.size > 8) {
+                    var bytesToInt2 = IComUtils.bytesToInt2(byteArrayOf(bArr[6], bArr[7]))
+                    Log.i(TAG, "setChannelComplete dataLen:$bytesToInt2")
+                    if (bytesToInt2 < 0) {
+                        bytesToInt2 += 256
+                    }
+                    if (bytesToInt2 == 1) {
+                        val b = bArr[8]
+                        Log.i(TAG, "setChannelComplete state:" + b.toInt())
+                        if (b.toInt() == 0) {
+                            success = true
+                        }
+                    }
+                    if (!success) {
+                        // TODO: this is technically failure, not timeout
+                        _channelState.value = State.TIMEOUT
+                        return
+                    }
+                }
+                isSetChannelFinished = true
+                if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+                    mScope.launch {
+                        // TODO: not sure why this has a delay
+                        delay(500)
+                        _channelState.value = State.READY
+                    }
+                } else {
+                    _channelState.value = State.READY
+                }
+                // TODO
+                val recvVolume = 6
+                if (SystemProperties.getBoolean("ro.agold.extmodule.dmr09", false)) {
+                    mExtModuleProtocol!!.setDmr09ReceiverVolume(recvVolume)
+                } else {
+                    mExtModuleProtocol!!.setReceiverVolume(recvVolume)
+                }
+                stopPlay()
+            } catch (e: TimeoutCancellationException) {
+                Log.i(TAG, "onSetChannelTimeout mIsCmdStart:$mIsCmdStart")
+                if (mIsCmdStart) {
+                    resetMcu()
+                }
+                isSetChannelFinished = true
+                mContext!!.sendBroadcast(Intent("agui.intercom.intent.action.START_TIMEOUT"))
+                _channelState.value = State.TIMEOUT
             }
         }
     }
