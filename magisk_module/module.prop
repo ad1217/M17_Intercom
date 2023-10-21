@@ -1,0 +1,7 @@
+id=open_aguiExtModule_permissions
+name=Open aguiExtModule Permissions
+version=0.1.0
+versionCode=1
+author=Adam Goldsmith KC1GDW <contact@adamgoldsmith.name>
+description=Allows any app to talk to aguiExtModule service, instead of only the system Intercom app
+
